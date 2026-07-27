@@ -22,7 +22,7 @@ curl -s -o /tmp/wh1.json -w '%{http_code}\n' \
   -X POST http://localhost:3000/webhooks/activity \
   -H "Authorization: Bearer $WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
-  -d @spec/fixtures/sample_activity_payload.json
+  -d @spec/fixtures/files/sample_activity_payload.json
 ```
 
 Expect `200`.
@@ -53,7 +53,7 @@ curl -s -o /dev/null -w '%{http_code}\n' \
   -X POST http://localhost:3000/webhooks/activity \
   -H "Authorization: Bearer $WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
-  -d @spec/fixtures/sample_activity_payload.json
+  -d @spec/fixtures/files/sample_activity_payload.json
 ```
 
 Expect `200` again — and `Activity.count` unchanged, with laps and streams **not** duplicated. A second row, or doubled laps, is the bug this step exists to catch.
@@ -64,7 +64,7 @@ Expect `200` again — and `Activity.count` unchanged, with laps and streams **n
 # wrong secret -> 401
 curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/webhooks/activity \
   -H "Authorization: Bearer wrong" -H "Content-Type: application/json" \
-  -d @spec/fixtures/sample_activity_payload.json
+  -d @spec/fixtures/files/sample_activity_payload.json
 
 # malformed body -> 422
 curl -s -o /dev/null -w '%{http_code}\n' -X POST http://localhost:3000/webhooks/activity \
@@ -79,9 +79,9 @@ Every attempt — success or failure — should leave a `WebhookLog` row. That t
 The pipeline omits null fields rather than sending explicit nulls, and three blocks are entirely optional. Strip them and confirm the receiver copes:
 
 ```bash
-jq 'del(.streams)'           spec/fixtures/sample_activity_payload.json > /tmp/no_streams.json
-jq 'del(.laps)'              spec/fixtures/sample_activity_payload.json > /tmp/no_laps.json
-jq 'del(.computed_metrics)'  spec/fixtures/sample_activity_payload.json > /tmp/no_metrics.json
+jq 'del(.streams)'           spec/fixtures/files/sample_activity_payload.json > /tmp/no_streams.json
+jq 'del(.laps)'              spec/fixtures/files/sample_activity_payload.json > /tmp/no_laps.json
+jq 'del(.computed_metrics)'  spec/fixtures/files/sample_activity_payload.json > /tmp/no_metrics.json
 ```
 
 Each must return `200`.

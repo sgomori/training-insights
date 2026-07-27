@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "source": "garmin_fit",
+  "file": "morning_run.fit",
+  "processed_at": "2026-01-15T12:34:56.789000+00:00",
+  "activity": {
+    "started_at": "2026-01-15T07:00:00+00:00",
+    "type": "running",
+    "distance_meters": 3156.5,
+    "duration_seconds": 1127.2,
+    "moving_time_seconds": 1127.2,
+    "elevation_gain_meters": 15.0,
+    "elevation_loss_meters": 28.0,
+    "average_heart_rate": 130,
+    "max_heart_rate": 141,
+    "average_cadence": 177,
+    "max_cadence": 182,
+    "average_power": 304,
+    "max_power": 395,
+    "normalized_power": 306,
+    "total_calories": 236,
+    "average_pace_per_km": 357.1
+  },
+  "computed_metrics": {
+    "aerobic_decoupling_pct": 7.88,
+    "efficiency_factor": 1.288,
+    "cardiac_drift_bpm": 21,
+    "tss_score": 19.0,
+    "rtss_score": 22.9,
+    "pace_cv": 0.0917,
+    "hr_zone_distribution": {
+      "zone_1": 100.0,
+      "zone_2": 0.0,
+      "zone_3": 0.0,
+      "zone_4": 0.0,
+      "zone_5": 0.0
+    },
+    "pace_zone_distribution": {
+      "easy": 41.8,
+      "moderate": 56.0,
+      "threshold": 2.0,
+      "hard": 0.3
+    },
+    "trimp": 22.7,
+    "avg_grade_adjusted_pace_per_km": 351.1,
+    "grade_adjusted_efficiency_factor": 1.3147
+  },
+  "laps": [
+    {
+      "started_at": "2026-01-15T07:00:00+00:00",
+      "distance_meters": 1000.0,
+      "duration_seconds": 360.0,
+      "average_heart_rate": 119,
+      "average_cadence": 172,
+      "average_pace_per_km": 360.0
+    },
+    {
+      "started_at": "2026-01-15T07:06:00+00:00",
+      "distance_meters": 1000.0,
+      "duration_seconds": 357.4,
+      "average_heart_rate": 132,
+      "average_cadence": 176,
+      "average_pace_per_km": 357.4
+    },
+    {
+      "started_at": "2026-01-15T07:11:57+00:00",
+      "distance_meters": 1000.0,
+      "duration_seconds": 355.0,
+      "average_heart_rate": 138,
+      "average_cadence": 178,
+      "average_pace_per_km": 355.0
+    },
+    {
+      "started_at": "2026-01-15T07:17:52+00:00",
+      "distance_meters": 156.5,
+      "duration_seconds": 54.8,
+      "average_heart_rate": 141,
+      "average_cadence": 180,
+      "average_pace_per_km": 350.2
+    }
+  ],
+  "streams": {
+    "heart_rate": [112, 118, 124, 127, 129, 130, 131, 133, 136, 139, 141],
+    "cadence": [168, 172, 174, 176, 177, 177, 178, 178, 179, 180, 180],
+    "enhanced_speed": [2.6, 2.71, 2.78, 2.8, 2.81, 2.8, 2.82, 2.83, 2.84, 2.85, 2.86],
+    "enhanced_altitude": [48.2, 48.4, 48.9, 49.3, 49.1, 48.6, 47.9, 47.2, 46.8, 46.5, 46.3],
+    "power": [271, 288, 297, 301, 304, 303, 306, 308, 309, 311, 312],
+    "distance": [0.0, 27.1, 54.9, 82.9, 111.0, 139.0, 167.2, 195.5, 223.9, 252.4, 281.0],
+    "temperature": [8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9]
+  }
+}
