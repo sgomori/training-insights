@@ -12,6 +12,10 @@ Rails.application.routes.draw do
     post "health_metric", to: "health_metrics#create"
   end
 
+  # The MCP server — the project's primary artifact. Mounted through a lambda so
+  # the endpoint constant resolves per request and survives code reloading.
+  mount ->(env) { McpEndpoint.call(env) } => "/mcp", as: :mcp_server
+
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)
   # get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker

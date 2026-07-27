@@ -38,6 +38,9 @@ RSpec.configure do |config|
   # Lets specs call `create`/`build` directly instead of `FactoryBot.create`.
   config.include FactoryBot::Syntax::Methods
 
+  # `travel_to` for period-boundary assertions.
+  config.include ActiveSupport::Testing::TimeHelpers
+
   # Infers `type: :request`, `type: :model`, etc. from the spec's directory.
   config.infer_spec_type_from_file_location!
 
