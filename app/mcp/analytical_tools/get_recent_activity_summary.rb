@@ -219,7 +219,7 @@ module AnalyticalTools
         end
 
         if current.size < MIN_SAMPLE_FOR_TREND
-          signals << "Only #{current.size} activities in this period — averages and comparisons are unreliable."
+          signals << "Only #{current.size} #{'activity'.pluralize(current.size)} in this period — averages and comparisons are unreliable."
         end
 
         load = training_load_for(current, days, zone)
@@ -235,12 +235,15 @@ module AnalyticalTools
           signals << if days < 28
             "Period is shorter than 28 days, so the chronic load figure is not a true chronic load."
           else
-            "Only #{load[:history_spans_days]} days of history exist, so the chronic load figure is not yet a true chronic load."
+            "Only #{load[:history_spans_days]} #{'day'.pluralize(load[:history_spans_days])} of history exist, " \
+              "so the chronic load figure is not yet a true chronic load."
           end
         end
 
         if load[:activities_missing_tss].positive?
-          signals << "#{load[:activities_missing_tss]} of #{current.size} activities have no TSS, so training load is understated."
+          missing = load[:activities_missing_tss]
+          signals << "#{missing} of #{current.size} #{'activity'.pluralize(current.size)} " \
+                     "#{missing == 1 ? 'has' : 'have'} no TSS, so training load is understated."
         end
 
         decoupling = mean_with_sample(current.map(&:aerobic_decoupling_pct))
