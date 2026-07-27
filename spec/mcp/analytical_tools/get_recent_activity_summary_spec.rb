@@ -64,14 +64,16 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
       load = payload[:training_load]
       expect(load[:total_tss]).to eq(1680.0)
       expect(load[:chronic_weekly_tss]).to eq(420.0)
-      expect(load[:acute_chronic_ratio]).to be_within(0.05).of(1.0)
+      expect(load.dig(:acute_chronic_ratio, :value)).to be_within(0.05).of(1.0)
+      expect(load.dig(:acute_chronic_ratio, :band)).to eq("typical maintenance range")
     end
 
     it "reports a ratio above 1.0 when recent load spikes" do
       21.times { |i| create(:activity, started_at: (i + 7).days.ago, tss_score: 20.0) }
       7.times { |i| create(:activity, started_at: i.days.ago, tss_score: 100.0) }
 
-      expect(payload[:training_load][:acute_chronic_ratio]).to be > 1.5
+      expect(payload[:training_load].dig(:acute_chronic_ratio, :value)).to be > 1.5
+      expect(payload[:training_load].dig(:acute_chronic_ratio, :band)).to eq("sharp load increase")
     end
 
     it "excludes activities with no TSS and says how many were missing" do
@@ -170,13 +172,67 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
       expect(payload[:aerobic_signals][:aerobic_decoupling_pct][:value]).to eq(4.0)
     end
 
-    it "states which direction counts as improvement" do
+    it "ships the shared reading guidance with every signal" do
       create(:activity, started_at: 2.days.ago)
 
       signals = payload[:aerobic_signals]
-      expect(signals[:average_pace_per_km][:interpretation]).to match(/lower is faster/)
-      expect(signals[:efficiency_factor][:interpretation]).to match(/higher is better/)
-      expect(signals[:aerobic_decoupling_pct][:interpretation]).to match(/lower is better/)
+      expect(signals[:average_pace_per_km]).to include(
+        unit: "seconds per kilometre", direction: "lower_is_faster"
+      )
+      expect(signals[:efficiency_factor][:direction]).to eq("higher_is_better")
+      expect(signals[:aerobic_decoupling_pct][:direction]).to eq("lower_is_better")
+      expect(signals[:aerobic_decoupling_pct][:guidance]).to be_present
+    end
+
+    it "classifies each value against its published band" do
+      create(:activity, started_at: 2.days.ago, aerobic_decoupling_pct: 12.0, efficiency_factor: 1.30)
+
+      signals = payload[:aerobic_signals]
+      expect(signals[:aerobic_decoupling_pct][:band]).to eq("significant decoupling")
+      expect(signals[:efficiency_factor][:band]).to eq("typical for a trained runner")
+    end
+
+    it "carries the reference bands so the client can reason numerically" do
+      create(:activity, started_at: 2.days.ago)
+
+      bands = payload[:aerobic_signals][:aerobic_decoupling_pct][:reference_bands]
+      expect(bands).to include(a_hash_including(label: "well conditioned", max: 5.0))
+    end
+  end
+
+  describe "contextual qualification of cardiac drift" do
+    it "averages drift over steady-state efforts only" do
+      create(:activity, started_at: 2.days.ago, cardiac_drift_bpm: 10, pace_cv: 0.08)
+      create(:activity, started_at: 3.days.ago, cardiac_drift_bpm: 12, pace_cv: 0.10)
+      create(:activity, :interval_session, started_at: 4.days.ago, cardiac_drift_bpm: 40)
+
+      drift = payload[:aerobic_signals][:cardiac_drift_bpm]
+      # Including the interval session would drag the mean to 20.7.
+      expect(drift[:value]).to eq(11.0)
+      expect(drift[:sample_size]).to eq(2)
+    end
+
+    it "says what it set aside and why" do
+      create(:activity, started_at: 2.days.ago, cardiac_drift_bpm: 10, pace_cv: 0.08)
+      create(:activity, :interval_session, started_at: 3.days.ago)
+
+      caveats = payload[:aerobic_signals][:cardiac_drift_bpm][:caveats]
+      expect(caveats).to include(a_string_matching(/steady-state efforts only/))
+      expect(caveats).to include(a_string_matching(/1 activity excluded as non-steady-state/))
+    end
+
+    it "excludes activities whose pace variability could not be derived" do
+      create(:activity, started_at: 2.days.ago, cardiac_drift_bpm: 10, pace_cv: nil)
+
+      drift = payload[:aerobic_signals][:cardiac_drift_bpm]
+      expect(drift[:value]).to be_nil
+      expect(drift[:caveats]).to include(a_string_matching(/pace variability could not be derived/))
+    end
+
+    it "surfaces structured sessions as a notable signal" do
+      create_list(:activity, 3, :interval_session)
+
+      expect(payload[:notable]).to include(a_string_matching(/highly variable pace/))
     end
   end
 
@@ -233,7 +289,7 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
       21.times { |i| create(:activity, started_at: (i + 7).days.ago, tss_score: 10.0) }
       7.times { |i| create(:activity, started_at: i.days.ago, tss_score: 120.0) }
 
-      expect(payload[:notable]).to include(a_string_matching(/well above the typical/))
+      expect(payload[:notable]).to include(a_string_matching(/outside the typical 0\.8-1\.3 range/))
     end
   end
 

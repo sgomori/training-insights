@@ -13,6 +13,7 @@ FactoryBot.define do
     efficiency_factor { 1.30 }
     aerobic_decoupling_pct { 4.0 }
     cardiac_drift_bpm { 8 }
+    pace_cv { 0.09 }
     hr_zone_distribution { { "zone_1" => 20.0, "zone_2" => 60.0, "zone_3" => 20.0, "zone_4" => 0.0, "zone_5" => 0.0 } }
     pace_zone_distribution { { "easy" => 70.0, "moderate" => 25.0, "threshold" => 5.0, "hard" => 0.0 } }
 
@@ -23,8 +24,16 @@ FactoryBot.define do
       efficiency_factor { nil }
       aerobic_decoupling_pct { nil }
       cardiac_drift_bpm { nil }
+      pace_cv { nil }
       hr_zone_distribution { nil }
       pace_zone_distribution { nil }
+    end
+
+    # A structured session: pace swings hard, so metrics that assume an even
+    # effort do not apply.
+    trait :interval_session do
+      pace_cv { 0.29 }
+      cardiac_drift_bpm { 30 }
     end
   end
 

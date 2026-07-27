@@ -30,6 +30,11 @@ module AnalyticalTools
     # Below this many contributing activities, trends and averages are noise.
     MIN_SAMPLE_FOR_TREND = 3
 
+    # Pace variability above this indicates intervals or varied terrain rather
+    # than a steady effort. Metrics that assume even pacing are not meaningful
+    # past it — see the cardiac drift signal below.
+    STEADY_STATE_PACE_CV_MAX = 0.20
+
     class << self
       def call(days: DEFAULT_DAYS, server_context: nil)
         days = days.to_i.clamp(1, 365)
@@ -107,7 +112,9 @@ module AnalyticalTools
           average_daily_tss: (total / days.to_f).round(1),
           acute_7d_tss: acute.round(1),
           chronic_weekly_tss: chronic_weekly&.round(1),
-          acute_chronic_ratio: ratio(acute, chronic_weekly),
+          acute_chronic_ratio: MetricInterpretation.describe(
+            :acute_chronic_ratio, value: ratio(acute, chronic_weekly)
+          ),
           # Load is understated by exactly this many activities, because the
           # pipeline could not derive a TSS for them.
           activities_missing_tss: activities.size - scored.size,
@@ -168,20 +175,51 @@ module AnalyticalTools
         }
       end
 
-      # Each signal carries the sample size behind it, and each states which
-      # direction counts as improvement — pace and decoupling improve downward,
-      # efficiency factor improves upward.
+      # Every signal ships with the shared reading guidance from
+      # MetricInterpretation, so the client is never handed a bare number it has
+      # no way to scale.
       def aerobic_signals_for(activities)
         {
-          aerobic_decoupling_pct: mean_with_sample(activities.map(&:aerobic_decoupling_pct))
-            .merge(interpretation: "lower is better; under 5% indicates good aerobic conditioning"),
-          efficiency_factor: mean_with_sample(activities.map(&:efficiency_factor), precision: 3)
-            .merge(interpretation: "higher is better; trends up as fitness improves"),
-          average_pace_per_km: mean_with_sample(activities.map(&:average_pace_per_km), precision: 1)
-            .merge(unit: "seconds per kilometre", interpretation: "lower is faster"),
-          cardiac_drift_bpm: mean_with_sample(activities.map(&:cardiac_drift_bpm), precision: 1)
-            .merge(interpretation: "pace is not controlled for, so read alongside terrain and pacing")
+          aerobic_decoupling_pct: MetricInterpretation.describe(
+            :aerobic_decoupling_pct, **mean_with_sample(activities.map(&:aerobic_decoupling_pct))
+          ),
+          efficiency_factor: MetricInterpretation.describe(
+            :efficiency_factor, **mean_with_sample(activities.map(&:efficiency_factor), precision: 3)
+          ),
+          average_pace_per_km: MetricInterpretation.describe(
+            :average_pace_per_km, **mean_with_sample(activities.map(&:average_pace_per_km), precision: 1)
+          ),
+          pace_variability: MetricInterpretation.describe(
+            :pace_cv, **mean_with_sample(activities.map(&:pace_cv), precision: 3)
+          ),
+          cardiac_drift_bpm: cardiac_drift_signal(activities)
         }
+      end
+
+      # Cardiac drift assumes an even effort — on an interval session the figure
+      # is arithmetically correct and analytically meaningless. Rather than
+      # averaging everything and appending a warning, the average is taken over
+      # steady-state efforts only and the response says what was set aside.
+      def cardiac_drift_signal(activities)
+        measured = activities.select(&:cardiac_drift_bpm)
+        steady = measured.select { |a| a.pace_cv && a.pace_cv <= STEADY_STATE_PACE_CV_MAX }
+        variable = measured.count { |a| a.pace_cv && a.pace_cv > STEADY_STATE_PACE_CV_MAX }
+        unclassified = measured.count { |a| a.pace_cv.nil? }
+
+        caveats = [ "Averaged over steady-state efforts only." ]
+        if variable.positive?
+          caveats << "#{variable} #{'activity'.pluralize(variable)} excluded as non-steady-state " \
+                     "(pace variability above #{STEADY_STATE_PACE_CV_MAX})."
+        end
+        if unclassified.positive?
+          caveats << "#{unclassified} excluded because pace variability could not be derived."
+        end
+
+        MetricInterpretation.describe(
+          :cardiac_drift_bpm,
+          **mean_with_sample(steady.map(&:cardiac_drift_bpm), precision: 1),
+          caveats: caveats
+        )
       end
 
       def comparison(current, previous)
@@ -223,12 +261,10 @@ module AnalyticalTools
         end
 
         load = training_load_for(current, days, zone)
-        if load[:acute_chronic_ratio]
-          if load[:acute_chronic_ratio] > 1.5
-            signals << "Acute:chronic load ratio is #{load[:acute_chronic_ratio]}, well above the typical 0.8-1.3 range."
-          elsif load[:acute_chronic_ratio] < 0.8
-            signals << "Acute:chronic load ratio is #{load[:acute_chronic_ratio]}, below the typical 0.8-1.3 range."
-          end
+        acwr = load.dig(:acute_chronic_ratio, :value)
+        if acwr && (acwr > 1.5 || acwr < 0.8)
+          band = load.dig(:acute_chronic_ratio, :band)
+          signals << "Acute:chronic load ratio is #{acwr} (#{band}), outside the typical 0.8-1.3 range."
         end
 
         unless load[:sufficient_history_for_chronic_load]
@@ -249,6 +285,12 @@ module AnalyticalTools
         decoupling = mean_with_sample(current.map(&:aerobic_decoupling_pct))
         if decoupling[:value] && decoupling[:sample_size] >= MIN_SAMPLE_FOR_TREND && decoupling[:value] > 10
           signals << "Average aerobic decoupling is #{decoupling[:value]}%, above the 10% threshold for significant decoupling."
+        end
+
+        variable = current.count { |a| a.pace_cv && a.pace_cv > STEADY_STATE_PACE_CV_MAX }
+        if variable.positive?
+          signals << "#{variable} of #{current.size} #{'activity'.pluralize(current.size)} had highly variable pace, " \
+                     "indicating structured or off-road sessions. Pace-sensitive metrics exclude them."
         end
 
         delta = pace_delta(current, previous)
