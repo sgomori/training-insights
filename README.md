@@ -47,6 +47,47 @@ Data arrives via the companion fit-pipeline project, which handles FIT file pars
 
 Detailed deployment instructions will be added once v1 is complete.
 
+## Local development
+
+Requires Ruby (pinned in `.mise.toml`, installed via [mise](https://mise.jdx.dev)) and PostgreSQL 18.
+
+```bash
+mise install
+bundle install
+bin/rails db:prepare
+cp .env.example .env    # then fill in the secrets
+bin/rails server
+```
+
+Run the quality gate with `bundle exec rubocop`, `bundle exec brakeman`, and `bundle exec rspec`.
+
+### Exercising the MCP server locally
+
+Generate a key, then call the endpoint:
+
+```bash
+bin/rails runner 'puts ApiKey.generate!(name: "local-dev")'
+```
+
+```bash
+curl -s http://localhost:3000/mcp \
+  -H "Authorization: Bearer $MCP_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq
+```
+
+The transport rejects unrecognised `Host` headers as DNS rebinding protection. Loopback hosts are trusted automatically; any other hostname must be listed in `MCP_ALLOWED_HOSTS`.
+
+### A note on the chat feature in development
+
+The website's chat reaches the analytical tools through the Anthropic API's MCP connector, which calls the MCP server over the public internet. That means **chat cannot run against `localhost`**. Two options in development:
+
+- Point `MCP_SERVER_URL` at the deployed instance and use a development API key against it, or
+- Expose the local server through a tunnel (`cloudflared tunnel --url http://localhost:3000`) and set `MCP_SERVER_URL` and `MCP_ALLOWED_HOSTS` to the tunnel hostname.
+
+Everything else — ingestion, the MCP server itself, and the tools — runs entirely locally.
+
 ## Project status
 
 Early development. v1 in progress. The repository is currently private and will be made public when the codebase represents the project well.

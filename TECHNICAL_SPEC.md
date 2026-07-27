@@ -29,9 +29,9 @@ The architecture is shaped by a few decisions that should be preserved across al
 - **Frontend:** Hotwire (Turbo + Stimulus), Tailwind CSS
 - **No React in v1.** Hotwire handles all client-side interactivity.
 - **AI provider:** Anthropic API
-- **MCP transport:** HTTP/SSE
-- **Background jobs:** Solid Queue (Rails 8 built-in) or Sidekiq, decision deferred to implementation
-- **Deployment:** Managed platform — Fly.io preferred, Render as alternative. Research during build.
+- **MCP transport:** Streamable HTTP (stateless)
+- **Background jobs:** Solid Queue (Rails 8 built-in), run inside Puma
+- **Deployment:** Render — Starter web service plus managed PostgreSQL
 
 ## Data architecture
 
@@ -84,21 +84,34 @@ Content-Type: application/json
 
 **Expected payload shape:**
 
+> The authoritative contract is `fit-pipeline/docs/payload_schema.md`, which the
+> sender is built from. The example below is kept in sync with it; where the two
+> disagree, the pipeline's document wins.
+
 ```json
 {
+  "schema_version": "1.0",
   "source": "garmin_fit",
-  "file": "2024-03-15-morning-run.fit",
+  "file": "morning_run.fit",
   "processed_at": "2024-03-15T09:23:41Z",
   "activity": {
     "started_at": "2024-03-15T07:00:00Z",
-    "type": "run",
+    "type": "running",
     "distance_meters": 15240,
     "duration_seconds": 4823,
+    "moving_time_seconds": 4790,
     "elevation_gain_meters": 187,
+    "elevation_loss_meters": 174,
     "average_pace_per_km": 316,
     "average_heart_rate": 148,
     "max_heart_rate": 171,
     "average_cadence": 174,
+    "max_cadence": 182,
+    "average_power": 304,
+    "max_power": 395,
+    "normalized_power": 306,
+    "total_calories": 236,
+    "training_stress_score": 87,
     "temperature_celsius": 8
   },
   "computed_metrics": {
@@ -106,7 +119,11 @@ Content-Type: application/json
     "efficiency_factor": 1.48,
     "cardiac_drift_bpm": 11,
     "tss_score": 87,
-    "variability_index": 0.04,
+    "rtss_score": 91.4,
+    "pace_cv": 0.04,
+    "trimp": 22.7,
+    "avg_grade_adjusted_pace_per_km": 311.4,
+    "grade_adjusted_efficiency_factor": 1.51,
     "hr_zone_distribution": {
       "zone_1": 8,
       "zone_2": 34,
@@ -121,14 +138,40 @@ Content-Type: application/json
       "hard": 15
     }
   },
+  "laps": [
+    {
+      "started_at": "2024-03-15T07:00:00Z",
+      "distance_meters": 1000.0,
+      "duration_seconds": 316.0,
+      "average_heart_rate": 142,
+      "max_heart_rate": 151,
+      "average_cadence": 172,
+      "average_pace_per_km": 316.0
+    }
+  ],
   "streams": {
     "heart_rate": [134, 136, 138, 141],
-    "pace": [320, 318, 315, 312],
     "cadence": [172, 174, 174, 176],
-    "altitude": [48.2, 48.4, 48.9, 49.3]
+    "enhanced_speed": [3.16, 3.18, 3.21, 3.24],
+    "enhanced_altitude": [48.2, 48.4, 48.9, 49.3],
+    "power": [271, 288, 297, 301],
+    "distance": [0.0, 27.1, 54.9, 82.9],
+    "temperature": [8, 8, 8, 9]
   }
 }
 ```
+
+**Two details the receiver must respect:**
+
+- **Null fields are omitted, not sent as explicit nulls.** Absence of a key is
+  valid input for anything optional, so validation must not require presence.
+- **`activity.training_stress_score` and `computed_metrics.tss_score` are
+  different numbers.** The first is the device's own TSS; the second is the
+  pipeline's heart-rate-derived TSS. They are stored in separate columns and are
+  not interchangeable.
+
+**`laps`, `streams`, and `computed_metrics` are each optional** and any of them
+may be absent from an otherwise valid payload.
 
 **Webhook receiver responsibilities:**
 
@@ -231,7 +274,7 @@ The tradeoff is that data ingestion is not fully automated — it depends on the
 
 ### Transport and access
 
-- HTTP/SSE transport
+- Streamable HTTP transport, mounted stateless
 - Publicly accessible endpoint on the canonical instance
 - API key authentication: API keys generated and distributed by the operator
 - IP-based rate limiting as a baseline against abuse
@@ -336,7 +379,7 @@ The website pays for AI usage (Anthropic API key belongs to the deployment opera
 
 ## External MCP client support
 
-The MCP server is publicly accessible at the canonical instance's HTTP/SSE endpoint with API key authentication. Documentation should explain:
+The MCP server is publicly accessible at the canonical instance's Streamable HTTP endpoint with API key authentication. Documentation should explain:
 
 - How to obtain an API key
 - How to configure Claude Desktop to connect
@@ -385,7 +428,7 @@ The TypeScript client is a demonstration artifact, not production software. It d
 
 ## Deployment
 
-Target: managed platform. Fly.io preferred for consumption-based pricing, strong Rails community support, and Kamal integration. Render as an alternative if Fly.io proves unsuitable during build.
+Target: Render. A Starter web service plus a Basic-1gb managed PostgreSQL, defined as code in `render.yaml`. See "Resolved implementation decisions" below for why this replaced the original Fly.io preference.
 
 Requirements:
 
@@ -431,14 +474,20 @@ The fit-pipeline README documents how to configure it to point at a Training Ins
 - One-click deployment for non-developer users
 - Partnership integrations with fundraising platforms
 
-## Open implementation decisions
+## Resolved implementation decisions
 
-To be resolved during build:
+Settled during the initial build:
 
-- Specific deployment platform (Fly.io vs Render)
-- Background job processor (Solid Queue vs Sidekiq)
-- Exact MCP server library or implementation approach (existing Ruby MCP libraries vs hand-rolled)
-- API key storage and rotation mechanics
+- **Deployment platform: Render.** A Starter web service plus a Basic-1gb managed PostgreSQL, defined as code in `render.yaml`, at roughly $26/month. Fly.io was the original preference on consumption pricing, but its Managed Postgres now starts at $38/month with no smaller tier, putting an equivalent Fly stack near $47/month. The legacy unmanaged `fly pg` is cheaper but deprecated and explicitly not a managed service.
+- **Background jobs: Solid Queue**, run inside Puma via the plugin. One instance serves web and jobs, which fits the Starter tier and the traffic profile.
+- **MCP implementation: the official `mcp` Ruby gem** (1.0.0), not hand-rolled.
+- **MCP transport: Streamable HTTP, mounted stateless.** HTTP/SSE, named earlier in this document, has been deprecated in the protocol. Stateless mode matters beyond protocol currency: the transport's stateful mode holds session and SSE state in process memory, which would make correctness depend on running exactly one process. Every tool is read-only, so there is no session worth keeping.
+- **ActivityStream storage: PostgreSQL array columns**, one row per activity. No tool queries *into* a stream — they aggregate whole streams — so per-sample rows would add hundreds of thousands of rows for no analytical gain.
+- **Activity idempotency key: `[source, started_at]`.** The payload carries no stable source identifier and `file` can be reused.
+- **API key storage: SHA-256 digests only.** A key is displayed once at generation and cannot be recovered; rotation is reissue-and-revoke.
+- **Website chat reaches the tools through the Anthropic MCP connector** pointed at the public `/mcp` URL, rather than the Rails app calling its own tools in process. This dogfoods the public interface, and means chat cannot run against localhost without a tunnel.
+
+Still open:
+
 - Final tool inventory and exact response schemas
-- Specific rate limit thresholds (set after measuring real usage)
-- ActivityStream storage (PostgreSQL array columns on Activity vs. separate timestamped table)
+- Specific rate limit thresholds — the placeholders in `config/initializers/rack_attack.rb` stand in until real per-call usage can be measured on the canonical instance

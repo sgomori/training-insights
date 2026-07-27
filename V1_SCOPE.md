@@ -25,7 +25,7 @@ If v1 ships with these three things working well, it's a success.
 
 ### MCP server
 
-- HTTP/SSE transport
+- Streamable HTTP transport (stateless)
 - API key authentication
 - IP-based rate limiting
 - Tool implementations for the v1 inventory:
@@ -73,7 +73,7 @@ If v1 ships with these three things working well, it's a success.
 
 ### Operations
 
-- Deployment to `training.stevegomori.ca` on a managed platform (Fly.io preferred)
+- Deployment to `training.stevegomori.ca` on Render (Starter web service plus managed PostgreSQL)
 - Public HTTPS endpoint for webhook receiver and MCP access
 - Basic operational documentation in the repo
 - WebhookLog table for ingestion observability

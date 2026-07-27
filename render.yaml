@@ -1,0 +1,67 @@
+# Render blueprint for the canonical instance.
+#
+# Apply with: render blueprint launch  (or connect the repo in the dashboard)
+# Secrets are marked `sync: false` and are set in the Render dashboard, never here.
+
+services:
+  - type: web
+    name: training-insights
+    runtime: ruby
+    plan: starter
+    region: ohio
+    branch: main
+    buildCommand: "./bin/render-build.sh"
+    startCommand: "bundle exec puma -C config/puma.rb"
+    healthCheckPath: /up
+    domains:
+      - training.stevegomori.ca
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: training-insights-db
+          property: connectionString
+
+      # Starter is 512MB. Puma runs single-mode so the Solid Queue supervisor
+      # can share the instance; raise this only on a larger plan.
+      - key: WEB_CONCURRENCY
+        value: 0
+      - key: RAILS_MAX_THREADS
+        value: 3
+      - key: SOLID_QUEUE_IN_PUMA
+        value: true
+
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_LOG_TO_STDOUT
+        value: true
+      - key: RAILS_SERVE_STATIC_FILES
+        value: true
+
+      # The MCP transport rejects any Host it does not recognise, so the public
+      # hostname must be named explicitly or every request returns 403.
+      - key: MCP_ALLOWED_HOSTS
+        value: training.stevegomori.ca
+      - key: MCP_SERVER_URL
+        value: https://training.stevegomori.ca/mcp
+
+      - key: ANTHROPIC_CHAT_MODEL
+        value: claude-opus-5
+      - key: ANTHROPIC_CONTENT_MODEL
+        value: claude-opus-5
+
+      # Set in the dashboard.
+      - key: RAILS_MASTER_KEY
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MCP_API_KEY
+        sync: false
+
+databases:
+  - name: training-insights-db
+    plan: basic-1gb
+    region: ohio
+    databaseName: training_insights
+    user: training_insights
