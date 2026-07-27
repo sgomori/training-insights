@@ -1,0 +1,66 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git switch:*)",
+      "Bash(git stash:*)",
+      "Bash(git tag:*)",
+      "Bash(git config:*)",
+      "Bash(git rebase:*)",
+      "Bash(bin/rails:*)",
+      "Bash(bin/rake:*)",
+      "Bash(bin/setup:*)",
+      "Bash(bundle:*)",
+      "Bash(rspec:*)",
+      "Bash(rubocop:*)",
+      "Bash(brakeman:*)",
+      "Bash(ruby:*)",
+      "Bash(gem list:*)",
+      "Bash(gem which:*)",
+      "Bash(mise:*)",
+      "Bash(psql:*)",
+      "Bash(pg_isready:*)",
+      "Bash(createdb:*)",
+      "Bash(node:*)",
+      "Bash(npm:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(diff:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)",
+      "Bash(mv:*)",
+      "Bash(which:*)",
+      "Bash(env:*)",
+      "Read(//home/sgomori/projects/fit-pipeline/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /home/sgomori/projects/training-insights && git diff --cached --name-only 2>/dev/null | grep -qE '^(app/mcp|app/services|db/migrate)/' && printf '\\n\\033[33m[Review reminder]\\033[0m Staged changes touch the tool layer, ingestion, or schema — run /check and the matching reviewer subagent before committing.\\n' || (git diff --cached --name-only 2>/dev/null | grep -q . && printf '\\n\\033[33m[Review reminder]\\033[0m Staged changes present — run /check before committing.\\n' || true)"
+          }
+        ]
+      }
+    ]
+  }
+}

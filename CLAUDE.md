@@ -1,12 +1,14 @@
 # CLAUDE.md
-[CLAUDE.md](../CLAUDE.md)
+
 Project-specific conventions for working in the Training Insights codebase.
 
 This file provides guidance to Claude Code when working on this repository. Read it at the start of each session.
 
 ## Project overview
 
-Training Insights is an MCP server for Strava training data with a single-runner Rails web frontend. See `README.md` for the public description, `TECHNICAL_SPEC.md` for architecture details, and `V1_SCOPE.md` for what's in v1 versus what's deferred.
+Training Insights is an MCP server for Garmin training data with a single-runner Rails web frontend. See `README.md` for the public description, `TECHNICAL_SPEC.md` for architecture details, and `V1_SCOPE.md` for what's in v1 versus what's deferred.
+
+Activity data arrives via an authenticated webhook from the companion `fit-pipeline` project, which parses Garmin FIT files and computes the analytical metrics. Health metrics arrive via a second webhook fed by Garmin CSV exports through n8n. The integration contract is `../fit-pipeline/docs/payload_schema.md` — that document, not the example in `TECHNICAL_SPEC.md`, is authoritative on payload shape.
 
 ## Core architectural principles
 
@@ -16,7 +18,7 @@ When making design decisions, preserve these principles:
 - **Single-runner by design.** No multi-tenancy. Configuration is per-deployment, not per-user.
 - **Opinionated data shaping in MCP tools.** Tools return curated aggregations, not raw data and not verdicts. They encode domain expertise through their choice of fields and computations.
 - **No AI in MCP tool execution.** Tools are deterministic. AI happens at the client layer.
-- **Strava is the only data source in v1.** Design the data layer to be source-agnostic, but don't build other sources.
+- **Garmin FIT via webhook is the only ingestion path in v1.** The Rails app integrates with no third-party fitness API — no OAuth, no platform credentials, no rate limits. Design the data layer to be source-agnostic, but don't build other sources. Source-specific knowledge lives in `app/services/ingestion/` and stops there; nothing under `app/models/` or `app/mcp/` may reference Garmin or FIT.
 
 If a proposed change conflicts with any of these, surface the conflict rather than working around it silently.
 
@@ -50,10 +52,11 @@ Commit messages are written in Rails community style:
 Good examples:
 
 ```
-Add Strava OAuth flow
+Add activity webhook receiver
 
-Implements the authorization code flow with token refresh.
-Tokens are stored encrypted in the strava_credentials table.
+Validates the pipeline payload, writes activities idempotently
+on source and started_at, and records every delivery attempt
+in webhook_logs.
 ```
 
 ```
@@ -94,6 +97,7 @@ When in doubt, prefer shorter and more concrete over longer and more explanatory
 - Avoid destructive changes in single migrations (no rename-and-remove in one step)
 - Use indexes appropriately, especially on columns used in MCP tool queries
 - PostgreSQL-specific features (JSONB, array columns, etc.) are fine to use
+- Computed metrics are nullable by design — the pipeline sends `null` when a required stream is missing, and omits null fields from the payload entirely. Aggregations exclude nils; they never coerce them to zero.
 
 ## MCP tool design
 
@@ -111,7 +115,7 @@ Test for a well-designed tool: could a different reasonable question be answered
 
 Some data is captured but never exposed:
 
-- GPS coordinates and route data: never displayed publicly, never exposed via MCP server
+- **GPS coordinates and route data: not stored at all.** The pipeline strips GPS before delivery and the schema has no column to hold it. Never add one — not for a feature, not defensively, not "just in case". The absence of the column is the guarantee; a nullable GPS column would make the promise procedural instead of structural.
 - Heart rate data: may be included in MCP responses (it's analytically useful) but should not be displayed in raw form on the website
 
 When in doubt about exposing a field, err toward not exposing.
@@ -121,10 +125,24 @@ When in doubt about exposing a field, err toward not exposing.
 - RSpec for tests, FactoryBot for fixtures
 - Test coverage focused on:
   - MCP tool implementations (they're the central engineering work)
-  - Strava sync logic (webhook handling, backfill, idempotency)
+  - Ingestion logic (webhook handling, payload validation, idempotency)
   - Data model invariants
   - Background job behavior
 - View and integration tests where reasonable but not exhaustive
+
+## Resolved implementation decisions
+
+`TECHNICAL_SPEC.md` left several decisions open. These are now settled — don't re-litigate them without a reason:
+
+| Decision | Choice |
+|---|---|
+| MCP transport | Streamable HTTP, mounted **stateless**. The HTTP/SSE transport named in the original spec is deprecated. Stateless mode avoids the official SDK's in-memory session state, which would otherwise force a single process. |
+| MCP implementation | The official `mcp` Ruby gem, not hand-rolled |
+| Background jobs | Solid Queue, embedded in Puma via the plugin |
+| ActivityStream storage | PostgreSQL array columns, one row per activity — not timestamped rows. No tool queries *into* a stream; they aggregate whole streams. |
+| Activity idempotency key | `[source, started_at]`. The payload carries no stable source ID and `file` can be reused. |
+| Deployment | Render — Starter web service plus Basic-1gb managed PostgreSQL. Fly.io was the original preference; its managed Postgres now starts at $38/mo, roughly double the alternative. |
+| Website chat → tools | The Anthropic MCP connector pointed at the public `/mcp` URL. Note this means chat cannot run against localhost without a tunnel. |
 
 ## Working with this codebase
 
