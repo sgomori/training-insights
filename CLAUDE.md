@@ -1,0 +1,151 @@
+# CLAUDE.md
+[CLAUDE.md](../CLAUDE.md)
+Project-specific conventions for working in the Training Insights codebase.
+
+This file provides guidance to Claude Code when working on this repository. Read it at the start of each session.
+
+## Project overview
+
+Training Insights is an MCP server for Strava training data with a single-runner Rails web frontend. See `README.md` for the public description, `TECHNICAL_SPEC.md` for architecture details, and `V1_SCOPE.md` for what's in v1 versus what's deferred.
+
+## Core architectural principles
+
+When making design decisions, preserve these principles:
+
+- **The MCP server is the primary artifact.** The website is one client among potentially several. External MCP clients (Claude Desktop, etc.) are first-class peers, not afterthoughts.
+- **Single-runner by design.** No multi-tenancy. Configuration is per-deployment, not per-user.
+- **Opinionated data shaping in MCP tools.** Tools return curated aggregations, not raw data and not verdicts. They encode domain expertise through their choice of fields and computations.
+- **No AI in MCP tool execution.** Tools are deterministic. AI happens at the client layer.
+- **Strava is the only data source in v1.** Design the data layer to be source-agnostic, but don't build other sources.
+
+If a proposed change conflicts with any of these, surface the conflict rather than working around it silently.
+
+## Branching and commit workflow
+
+All work happens on feature branches. Main branch history is maintained via squash and merge — each merged branch becomes one clean commit on main.
+
+**Branch commits:** Commit whenever a logical unit of work is complete. Messages should be clear enough to review but don't need to be perfect. These are ephemeral.
+
+**Squash commits:** When instructed to squash a branch, review the branch commits, synthesize what collectively changed, and write one clean commit message following the style guidelines below. Execute via `git rebase -i` or `git reset` + recommit.
+
+**Setting commit dates when squashing:** Both author date and committer date should be set explicitly when squashing. The date to use will be specified in the squash instruction.
+
+```bash
+# Set author date and committer date together
+git commit --amend --date="YYYY-MM-DD HH:MM:SS" --no-edit
+GIT_COMMITTER_DATE="YYYY-MM-DD HH:MM:SS" git commit --amend --no-edit
+```
+
+## Commit conventions
+
+Commit messages are written in Rails community style:
+
+- Imperative mood subject line, approximately 50 characters
+- Optional body separated by a blank line, used when the change benefits from context
+- No prefix conventions (no `feat:`, `fix:`, etc.)
+- No AI co-author trailers
+- No "Generated with Claude Code" or similar markers
+- Style should match what an experienced human developer would write
+
+Good examples:
+
+```
+Add Strava OAuth flow
+
+Implements the authorization code flow with token refresh.
+Tokens are stored encrypted in the strava_credentials table.
+```
+
+```
+Fix activity sync timing on initial backfill
+```
+
+```
+Extract pace progression logic into PaceAnalyzer
+```
+
+```
+Update MCP server to return shaped race readiness data
+```
+
+When in doubt, prefer shorter and more concrete over longer and more explanatory.
+
+## Code style
+
+### Ruby and Rails
+
+- Follow standard Rails conventions
+- Use Rails idioms (Active Record, Action Controller, etc.) idiomatically
+- Prefer service objects or POROs for complex business logic over fat models or fat controllers
+- Use Rails 8 features where appropriate (Solid Queue, Solid Cache, etc.)
+- Standard Ruby style: 2-space indent, `snake_case` for methods and variables, `CamelCase` for classes
+
+### Frontend
+
+- Hotwire (Turbo + Stimulus) for all client-side interactivity
+- Tailwind CSS for styling, using utility classes directly in templates
+- No React, Vue, or any other JS framework
+- No bespoke build tooling beyond what comes with modern Rails
+- Stimulus controllers should be small and focused
+
+### Database
+
+- Migrations should be backward-compatible where possible
+- Avoid destructive changes in single migrations (no rename-and-remove in one step)
+- Use indexes appropriately, especially on columns used in MCP tool queries
+- PostgreSQL-specific features (JSONB, array columns, etc.) are fine to use
+
+## MCP tool design
+
+When implementing or modifying MCP tools, hold these principles:
+
+- **Medium-grained.** Each tool represents a meaningful analytical unit, not a raw query primitive.
+- **Opinionated shaping.** Return rich, structured data with aggregations and comparisons. Don't return raw activity lists from analytical tools.
+- **Self-contained context.** Include enough information in the response that the AI client can reason without needing follow-up tool calls for basic context.
+- **Surface notable signals.** Don't make the AI client compute basic insights; surface them in the response.
+- **No AI calls inside tool execution.** Tools are deterministic Ruby code that reads from the database and returns structured data.
+
+Test for a well-designed tool: could a different reasonable question be answered from this tool's output? If yes, the abstraction is right.
+
+## Privacy
+
+Some data is captured but never exposed:
+
+- GPS coordinates and route data: never displayed publicly, never exposed via MCP server
+- Heart rate data: may be included in MCP responses (it's analytically useful) but should not be displayed in raw form on the website
+
+When in doubt about exposing a field, err toward not exposing.
+
+## Testing
+
+- RSpec for tests, FactoryBot for fixtures
+- Test coverage focused on:
+  - MCP tool implementations (they're the central engineering work)
+  - Strava sync logic (webhook handling, backfill, idempotency)
+  - Data model invariants
+  - Background job behavior
+- View and integration tests where reasonable but not exhaustive
+
+## Working with this codebase
+
+- Before adding a feature, check `V1_SCOPE.md` to confirm it's in scope. If it's explicitly out of scope, flag rather than build.
+- When in doubt about a design decision, check `TECHNICAL_SPEC.md`. If the spec doesn't address it, surface the decision rather than choosing silently.
+- Prefer clarity over cleverness. This is a portfolio project that will be read by hiring managers.
+- The codebase should look like work an experienced senior engineer is proud of.
+
+## What not to add
+
+These conventions should be enforced when generating code:
+
+- No AI co-author trailers in commits
+- No "Generated with Claude Code" comments in code
+- No emoji in code, comments, or commit messages unless specifically requested
+- No marketing-style language in docstrings or comments
+- No "TODO: improve this" or other vague placeholders — either do it or open an issue
+- No leaving debugging output (puts, console.log, byebug) in committed code
+
+## Format preferences
+
+- Markdown files use consistent heading levels and minimal flourishes
+- Code comments are sparse and explain "why" rather than "what"
+- Method signatures should be self-documenting where possible
