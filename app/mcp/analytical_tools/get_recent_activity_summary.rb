@@ -6,11 +6,13 @@ module AnalyticalTools
     tool_name "get_recent_activity_summary"
 
     description <<~TEXT.strip
-      A shaped overview of the runner's recent training: volume, training load
-      with its acute:chronic ratio, duration-weighted intensity distribution,
-      aerobic fitness signals, and a comparison against the immediately
-      preceding period of equal length. Returns aggregations and surfaced
-      signals rather than a list of activities.
+      A shaped overview of the runner's recent training: volume, terrain,
+      training load, duration-weighted intensity distribution, aerobic fitness
+      signals both raw and grade-adjusted, and a comparison against the
+      immediately preceding period of equal length. Every response also carries
+      the runner's current load state, so a single period can be read against
+      what preceded it. Returns aggregations and surfaced signals rather than a
+      list of activities.
     TEXT
 
     input_schema(
@@ -35,22 +37,29 @@ module AnalyticalTools
     # past it — see the cardiac drift signal below.
     STEADY_STATE_PACE_CV_MAX = 0.20
 
+    # Below this the terrain cost is inside the noise of pace measurement and
+    # not worth surfacing.
+    NOTABLE_TERRAIN_COST_SECONDS = 5.0
+
     class << self
       def call(days: DEFAULT_DAYS, server_context: nil)
         days = days.to_i.clamp(1, 365)
-        zone = ActiveSupport::TimeZone[runner_timezone] || ActiveSupport::TimeZone["UTC"]
+        zone = runner_time_zone
+        context = TrainingContext.current(zone: zone)
 
         current = period_ending(zone.today, days, zone)
         previous = period_ending(zone.today - days, days, zone)
 
         shaped(
           period: describe_period(current, days, zone),
+          training_context: context.to_h,
           volume: volume_for(current),
-          training_load: training_load_for(current, days, zone),
+          terrain: terrain_for(current),
+          training_load: training_load_for(current, days),
           intensity_distribution: intensity_for(current),
           aerobic_signals: aerobic_signals_for(current),
           comparison_to_previous_period: comparison(current, previous),
-          notable: notable_signals(current, previous, days, zone)
+          notable: notable_signals(current, previous, days, context)
         )
       end
 
@@ -85,63 +94,48 @@ module AnalyticalTools
           activity_count: activities.size,
           total_distance_km: (distances.sum / 1000.0).round(1),
           total_duration_hours: (durations.sum / 3600.0).round(1),
-          total_elevation_gain_m: activities.filter_map(&:elevation_gain_meters).sum.round,
           average_distance_km: distances.empty? ? nil : (distances.sum / distances.size / 1000.0).round(1),
           longest_run_km: distances.empty? ? nil : (distances.max / 1000.0).round(1),
           days_with_activity: activities.map { |a| a.started_at.to_date }.uniq.size
         }
       end
 
-      # Acute load is the trailing 7-day total. Chronic load is normalised to a
-      # weekly figure so the ratio sits near 1.0 for steady training — dividing
-      # a 7-day sum by a 28-day sum would report ~0.25 instead.
+      # Terrain is reported separately from volume because it qualifies every
+      # pace figure below it. The same 10k is a different effort on a hill, and
+      # the client has no way to know which it was looking at otherwise.
       #
-      # The acute window is bounded by calendar days in the runner's timezone,
-      # matching how the reporting period itself is derived. A rolling
-      # `Time.current - 7.days` instant would silently take in an eighth day.
-      def training_load_for(activities, days, zone)
+      # The ratio is taken over activities carrying both figures, so a run with
+      # no altitude data cannot drag the average toward flat.
+      def terrain_for(activities)
+        measured = activities.select { |a| a.elevation_gain_meters && a.distance_meters.to_f.positive? }
+        gain = measured.sum(&:elevation_gain_meters)
+        distance_km = measured.sum(&:distance_meters) / 1000.0
+
+        {
+          total_elevation_gain_m: gain.round,
+          elevation_gain_per_km: MetricInterpretation.describe(
+            :elevation_gain_per_km,
+            value: distance_km.positive? ? (gain / distance_km).round(1) : nil,
+            sample_size: measured.size
+          )
+        }
+      end
+
+      # Load figures scoped to the requested period. The acute:chronic ratio is
+      # deliberately not here: it belongs to the runner's present state, not to
+      # an arbitrary window, and lives in training_context so that asking for a
+      # 90-day summary cannot change what the ratio says.
+      def training_load_for(activities, days)
         scored = activities.select(&:tss_score)
         total = scored.sum(&:tss_score)
-
-        acute_cutoff = zone.parse((zone.today - 6).to_s).beginning_of_day
-        acute = scored.select { |a| a.started_at >= acute_cutoff }.sum(&:tss_score)
-        chronic_weekly = days >= 7 ? (total / (days / 7.0)) : nil
 
         {
           total_tss: total.round(1),
           average_daily_tss: (total / days.to_f).round(1),
-          acute_7d_tss: acute.round(1),
-          chronic_weekly_tss: chronic_weekly&.round(1),
-          acute_chronic_ratio: MetricInterpretation.describe(
-            :acute_chronic_ratio, value: ratio(acute, chronic_weekly)
-          ),
           # Load is understated by exactly this many activities, because the
           # pipeline could not derive a TSS for them.
-          activities_missing_tss: activities.size - scored.size,
-          sufficient_history_for_chronic_load: sufficient_history?(days, zone),
-          history_spans_days: history_span_days(zone)
+          activities_missing_tss: activities.size - scored.size
         }
-      end
-
-      # A 28-day window is only a chronic load if 28 days of training actually
-      # sit behind it. Asking for a long period does not manufacture history.
-      def sufficient_history?(days, zone)
-        return false if days < 28
-
-        history_span_days(zone).to_i >= 28
-      end
-
-      def history_span_days(zone)
-        earliest = Activity.minimum(:started_at)
-        return 0 if earliest.nil?
-
-        (zone.today - earliest.in_time_zone(zone).to_date).to_i + 1
-      end
-
-      def ratio(acute, chronic_weekly)
-        return nil if chronic_weekly.nil? || chronic_weekly.zero?
-
-        (acute / chronic_weekly).round(2)
       end
 
       # Zone percentages are per-activity and must be weighted by duration
@@ -178,6 +172,10 @@ module AnalyticalTools
       # Every signal ships with the shared reading guidance from
       # MetricInterpretation, so the client is never handed a bare number it has
       # no way to scale.
+      #
+      # Pace and efficiency factor appear twice: once raw, once grade-adjusted.
+      # The pipeline normalises both against the altitude stream, and the
+      # adjusted figure is the one that survives a change of route.
       def aerobic_signals_for(activities)
         {
           aerobic_decoupling_pct: MetricInterpretation.describe(
@@ -186,8 +184,16 @@ module AnalyticalTools
           efficiency_factor: MetricInterpretation.describe(
             :efficiency_factor, **mean_with_sample(activities.map(&:efficiency_factor), precision: 3)
           ),
+          grade_adjusted_efficiency_factor: MetricInterpretation.describe(
+            :grade_adjusted_efficiency_factor,
+            **mean_with_sample(activities.map(&:grade_adjusted_efficiency_factor), precision: 3)
+          ),
           average_pace_per_km: MetricInterpretation.describe(
             :average_pace_per_km, **mean_with_sample(activities.map(&:average_pace_per_km), precision: 1)
+          ),
+          avg_grade_adjusted_pace_per_km: MetricInterpretation.describe(
+            :avg_grade_adjusted_pace_per_km,
+            **mean_with_sample(activities.map(&:avg_grade_adjusted_pace_per_km), precision: 1)
           ),
           pace_variability: MetricInterpretation.describe(
             :pace_cv, **mean_with_sample(activities.map(&:pace_cv), precision: 3)
@@ -229,26 +235,51 @@ module AnalyticalTools
         previous_tss = previous.filter_map(&:tss_score).sum
 
         {
-          note: "Compared against the immediately preceding period of equal length.",
+          note: "Compared against the immediately preceding period of equal length. " \
+                "A negative pace delta is faster. Prefer the grade-adjusted delta: it is the one " \
+                "that isolates fitness from a change of route.",
           previous_activity_count: previous.size,
           activity_count_change: current.size - previous.size,
           distance_change_pct: percent_change(previous_distance, current_distance),
           tss_change_pct: percent_change(previous_tss, current_tss),
-          # A negative pace delta is faster.
-          pace_change_seconds_per_km: pace_delta(current, previous)
+          pace_change_seconds_per_km: pace_delta(current, previous, :average_pace_per_km),
+          grade_adjusted_pace_change_seconds_per_km:
+            pace_delta(current, previous, :avg_grade_adjusted_pace_per_km),
+          elevation_gain_per_km_change: percent_change(
+            gain_per_km(previous), gain_per_km(current)
+          )
         }
       end
 
-      def pace_delta(current, previous)
-        now = mean_with_sample(current.map(&:average_pace_per_km), precision: 1)
-        before = mean_with_sample(previous.map(&:average_pace_per_km), precision: 1)
+      def pace_delta(current, previous, column)
+        now = mean_with_sample(current.map(&column), precision: 1)
+        before = mean_with_sample(previous.map(&column), precision: 1)
         return nil if now[:value].nil? || before[:value].nil?
         return nil if now[:sample_size] < MIN_SAMPLE_FOR_TREND || before[:sample_size] < MIN_SAMPLE_FOR_TREND
 
         (now[:value] - before[:value]).round(1)
       end
 
-      def notable_signals(current, previous, days, zone)
+      def gain_per_km(activities)
+        measured = activities.select { |a| a.elevation_gain_meters && a.distance_meters.to_f.positive? }
+        distance_km = measured.sum(&:distance_meters) / 1000.0
+        return nil unless distance_km.positive?
+
+        (measured.sum(&:elevation_gain_meters) / distance_km).round(1)
+      end
+
+      # How much the terrain cost, in seconds per kilometre: the gap between raw
+      # pace and its flat-equivalent, over activities carrying both.
+      def terrain_cost_seconds_per_km(activities)
+        measured = activities.select { |a| a.average_pace_per_km && a.avg_grade_adjusted_pace_per_km }
+        return nil if measured.empty?
+
+        raw = measured.sum(&:average_pace_per_km) / measured.size
+        adjusted = measured.sum(&:avg_grade_adjusted_pace_per_km) / measured.size
+        (raw - adjusted).round(1)
+      end
+
+      def notable_signals(current, previous, days, context)
         signals = []
 
         if current.empty?
@@ -260,24 +291,25 @@ module AnalyticalTools
           signals << "Only #{current.size} #{'activity'.pluralize(current.size)} in this period — averages and comparisons are unreliable."
         end
 
-        load = training_load_for(current, days, zone)
-        acwr = load.dig(:acute_chronic_ratio, :value)
+        acwr = context.acute_chronic_ratio
         if acwr && (acwr > 1.5 || acwr < 0.8)
-          band = load.dig(:acute_chronic_ratio, :band)
+          band = MetricInterpretation.describe(:acute_chronic_ratio, value: acwr)[:band]
           signals << "Acute:chronic load ratio is #{acwr} (#{band}), outside the typical 0.8-1.3 range."
         end
 
-        unless load[:sufficient_history_for_chronic_load]
-          signals << if days < 28
-            "Period is shorter than 28 days, so the chronic load figure is not a true chronic load."
-          else
-            "Only #{load[:history_spans_days]} #{'day'.pluralize(load[:history_spans_days])} of history exist, " \
-              "so the chronic load figure is not yet a true chronic load."
-          end
+        unless context.sufficient_history_for_chronic_load?
+          span = context.history_spans_days
+          signals << "Only #{span} #{'day'.pluralize(span)} of history exist, " \
+                     "so the chronic load figure is not yet a true chronic load."
         end
 
-        if load[:activities_missing_tss].positive?
-          missing = load[:activities_missing_tss]
+        streak = context.consecutive_training_days
+        if streak >= 7 && context.days_since_last_activity.to_i.zero?
+          signals << "#{streak} consecutive training days with no rest day."
+        end
+
+        missing = current.count { |a| a.tss_score.nil? }
+        if missing.positive?
           signals << "#{missing} of #{current.size} #{'activity'.pluralize(current.size)} " \
                      "#{missing == 1 ? 'has' : 'have'} no TSS, so training load is understated."
         end
@@ -293,10 +325,33 @@ module AnalyticalTools
                      "indicating structured or off-road sessions. Pace-sensitive metrics exclude them."
         end
 
-        delta = pace_delta(current, previous)
-        if delta && delta.abs >= 5
-          direction = delta.negative? ? "faster" : "slower"
-          signals << "Average pace is #{delta.abs}s/km #{direction} than the preceding period."
+        cost = terrain_cost_seconds_per_km(current)
+        if cost && cost >= NOTABLE_TERRAIN_COST_SECONDS
+          signals << "Terrain cost about #{cost}s/km over this period — raw pace understates the effort."
+        end
+
+        signals.concat(pace_trend_signals(current, previous))
+        signals
+      end
+
+      # Raw and grade-adjusted pace are reported together when they disagree,
+      # because the disagreement is the finding: pace that only improved on the
+      # raw figure means the routes got flatter, not that the runner got faster.
+      def pace_trend_signals(current, previous)
+        raw = pace_delta(current, previous, :average_pace_per_km)
+        adjusted = pace_delta(current, previous, :avg_grade_adjusted_pace_per_km)
+        signals = []
+
+        if adjusted && adjusted.abs >= 5
+          signals << "Grade-adjusted pace is #{adjusted.abs}s/km #{adjusted.negative? ? 'faster' : 'slower'} " \
+                     "than the preceding period, with terrain accounted for."
+        elsif raw && raw.abs >= 5
+          signals << "Average pace is #{raw.abs}s/km #{raw.negative? ? 'faster' : 'slower'} than the preceding period."
+        end
+
+        if raw && adjusted && (raw - adjusted).abs >= 5
+          signals << "Raw and grade-adjusted pace trends disagree by #{(raw - adjusted).abs.round(1)}s/km, " \
+                     "so the routes changed in difficulty between the two periods."
         end
 
         signals

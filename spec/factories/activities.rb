@@ -9,8 +9,10 @@ FactoryBot.define do
     elevation_gain_meters { 80.0 }
     average_heart_rate { 145 }
     average_pace_per_km { 360.0 }
+    avg_grade_adjusted_pace_per_km { 352.0 }
     tss_score { 60.0 }
     efficiency_factor { 1.30 }
+    grade_adjusted_efficiency_factor { 1.33 }
     aerobic_decoupling_pct { 4.0 }
     cardiac_drift_bpm { 8 }
     pace_cv { 0.09 }
@@ -22,11 +24,20 @@ FactoryBot.define do
     trait :without_computed_metrics do
       tss_score { nil }
       efficiency_factor { nil }
+      grade_adjusted_efficiency_factor { nil }
+      avg_grade_adjusted_pace_per_km { nil }
       aerobic_decoupling_pct { nil }
       cardiac_drift_bpm { nil }
       pace_cv { nil }
       hr_zone_distribution { nil }
       pace_zone_distribution { nil }
+    end
+
+    # A hilly route: the climbing costs 30s/km against the flat equivalent.
+    trait :hilly do
+      elevation_gain_meters { 400.0 }
+      average_pace_per_km { 390.0 }
+      avg_grade_adjusted_pace_per_km { 360.0 }
     end
 
     # A structured session: pace swings hard, so metrics that assume an even
@@ -43,6 +54,13 @@ FactoryBot.define do
     threshold_heart_rate { 167 }
     resting_heart_rate { 48 }
     max_heart_rate { 185 }
+  end
+
+  factory :race do
+    name { "Toronto Waterfront Marathon" }
+    race_date { 8.weeks.from_now.to_date }
+    distance_meters { 42_195 }
+    status { "upcoming" }
   end
 
   factory :api_key do

@@ -67,6 +67,42 @@ module MetricInterpretation
       bands: []
     ),
 
+    avg_grade_adjusted_pace_per_km: Definition.new(
+      unit: "seconds per kilometre",
+      direction: "lower_is_faster",
+      guidance: "Pace normalised to flat-equivalent terrain, so efforts on different routes are comparable. " \
+                "Faster than raw pace by the amount the climbing cost. Compare this, not raw pace, when " \
+                "judging whether the runner is getting faster.",
+      bands: []
+    ),
+
+    grade_adjusted_efficiency_factor: Definition.new(
+      unit: "metres per minute per bpm",
+      direction: "higher_is_better",
+      guidance: "Efficiency factor computed from grade-adjusted rather than raw pace. On hilly routes this " \
+                "is the fairer read of aerobic fitness, because raw efficiency factor penalises climbing.",
+      bands: [
+        band("implausibly low — check data quality", max: 1.0),
+        band("typical for a trained runner", min: 1.0, max: 1.8),
+        band("high", min: 1.8, max: 2.5),
+        band("implausibly high — check data quality", min: 2.5)
+      ]
+    ),
+
+    elevation_gain_per_km: Definition.new(
+      unit: "metres per kilometre",
+      direction: "context_dependent",
+      guidance: "Climbing per kilometre, describing the terrain rather than the runner. Use it to check " \
+                "whether a change in pace reflects fitness or a change in route.",
+      bands: [
+        band("flat", max: 5.0),
+        band("gently rolling", min: 5.0, max: 15.0),
+        band("rolling", min: 15.0, max: 30.0),
+        band("hilly", min: 30.0, max: 60.0),
+        band("mountainous", min: 60.0)
+      ]
+    ),
+
     cardiac_drift_bpm: Definition.new(
       unit: "bpm",
       direction: "lower_is_better",

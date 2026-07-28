@@ -21,6 +21,16 @@ module ToolRegistry
     aerobic decoupling falls. Any metric may be null when the source data
     lacked what was needed to derive it; sample sizes are reported alongside
     averages so you can judge how much weight a figure carries.
+
+    Pace and efficiency factor are reported both raw and grade-adjusted. The
+    grade-adjusted figures normalise for climbing, so they are the ones to
+    compare across periods — a route change can move raw pace by more than a
+    season of training does.
+
+    Where a response carries a training_context block, read the period against
+    it. Load state changes what a number means: a laboured run in the ninth
+    consecutive training day and the same run after a rest week are different
+    facts, and only the context block distinguishes them.
   TEXT
 
   def self.tools

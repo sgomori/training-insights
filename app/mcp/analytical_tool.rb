@@ -38,9 +38,9 @@ class AnalyticalTool < MCP::Tool
     end
 
     # The runner's configured timezone, so every period boundary in every tool
-    # agrees. Falls back to UTC when no runner is configured yet.
-    def runner_timezone
-      Runner.current&.timezone.presence || "UTC"
+    # agrees.
+    def runner_time_zone
+      Runner.current_time_zone
     end
 
     # Mean of the non-nil values, with the sample size that produced it. A bare

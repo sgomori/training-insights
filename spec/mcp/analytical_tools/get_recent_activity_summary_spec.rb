@@ -33,15 +33,14 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
   end
 
   describe "volume" do
-    it "aggregates distance, duration and elevation" do
-      create(:activity, started_at: 2.days.ago, distance_meters: 10_000, duration_seconds: 3_600, elevation_gain_meters: 100)
-      create(:activity, started_at: 3.days.ago, distance_meters: 5_000, duration_seconds: 1_800, elevation_gain_meters: 50)
+    it "aggregates distance and duration" do
+      create(:activity, started_at: 2.days.ago, distance_meters: 10_000, duration_seconds: 3_600)
+      create(:activity, started_at: 3.days.ago, distance_meters: 5_000, duration_seconds: 1_800)
 
       expect(payload[:volume]).to include(
         activity_count: 2,
         total_distance_km: 15.0,
         total_duration_hours: 1.5,
-        total_elevation_gain_m: 150,
         longest_run_km: 10.0
       )
     end
@@ -57,23 +56,12 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
   end
 
   describe "training load" do
-    it "normalises chronic load to a weekly figure so the ratio sits near 1.0 for steady training" do
-      # 60 TSS every day for 28 days: acute (7d) = 420, chronic weekly = 420.
+    it "reports load scoped to the requested period" do
       28.times { |i| create(:activity, started_at: i.days.ago, tss_score: 60.0) }
 
       load = payload[:training_load]
       expect(load[:total_tss]).to eq(1680.0)
-      expect(load[:chronic_weekly_tss]).to eq(420.0)
-      expect(load.dig(:acute_chronic_ratio, :value)).to be_within(0.05).of(1.0)
-      expect(load.dig(:acute_chronic_ratio, :band)).to eq("typical maintenance range")
-    end
-
-    it "reports a ratio above 1.0 when recent load spikes" do
-      21.times { |i| create(:activity, started_at: (i + 7).days.ago, tss_score: 20.0) }
-      7.times { |i| create(:activity, started_at: i.days.ago, tss_score: 100.0) }
-
-      expect(payload[:training_load].dig(:acute_chronic_ratio, :value)).to be > 1.5
-      expect(payload[:training_load].dig(:acute_chronic_ratio, :band)).to eq("sharp load increase")
+      expect(load[:average_daily_tss]).to eq(60.0)
     end
 
     it "excludes activities with no TSS and says how many were missing" do
@@ -85,20 +73,54 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
       expect(load[:activities_missing_tss]).to eq(1)
     end
 
-    it "flags that a short period cannot yield a true chronic load" do
+    # The acute:chronic ratio describes the runner's present state, not the
+    # requested window, so it lives in training_context and must not move when
+    # the caller asks about a different period.
+    it "keeps the acute:chronic ratio out of the period-scoped load block" do
       create(:activity, started_at: 2.days.ago)
 
-      result = described_class.call(days: 10).structured_content
-      expect(result[:training_load][:sufficient_history_for_chronic_load]).to be(false)
-      expect(result[:notable]).to include(a_string_matching(/shorter than 28 days/))
+      expect(payload[:training_load]).not_to have_key(:acute_chronic_ratio)
+    end
+  end
+
+  describe "training context" do
+    it "normalises chronic load to a weekly figure so the ratio sits near 1.0 for steady training" do
+      # 60 TSS every day for 28 days: acute (7d) = 420, chronic weekly = 420.
+      28.times { |i| create(:activity, started_at: i.days.ago, tss_score: 60.0) }
+
+      context = payload[:training_context]
+      expect(context[:acute_7d_tss]).to eq(420.0)
+      expect(context[:chronic_weekly_tss]).to eq(420.0)
+      expect(context.dig(:acute_chronic_ratio, :value)).to be_within(0.05).of(1.0)
+      expect(context.dig(:acute_chronic_ratio, :band)).to eq("typical maintenance range")
     end
 
-    it "flags a 28-day window that has less than 28 days of history behind it" do
+    it "reports a ratio above 1.0 when recent load spikes" do
+      21.times { |i| create(:activity, started_at: (i + 7).days.ago, tss_score: 20.0) }
+      7.times { |i| create(:activity, started_at: i.days.ago, tss_score: 100.0) }
+
+      expect(payload[:training_context].dig(:acute_chronic_ratio, :value)).to be > 1.5
+      expect(payload[:training_context].dig(:acute_chronic_ratio, :band)).to eq("sharp load increase")
+    end
+
+    it "reports the same ratio regardless of the window the caller asked about" do
+      28.times { |i| create(:activity, started_at: i.days.ago, tss_score: 60.0) }
+
+      short = described_class.call(days: 7).structured_content
+      long = described_class.call(days: 90).structured_content
+
+      expect(short.dig(:training_context, :acute_chronic_ratio, :value))
+        .to eq(long.dig(:training_context, :acute_chronic_ratio, :value))
+    end
+
+    it "flags a chronic baseline that has less than 28 days of history behind it" do
       create(:activity, started_at: 5.days.ago)
 
-      load = payload[:training_load]
-      expect(load[:sufficient_history_for_chronic_load]).to be(false)
-      expect(load[:history_spans_days]).to eq(6)
+      context = payload[:training_context]
+      expect(context[:sufficient_history_for_chronic_load]).to be(false)
+      expect(context[:history_spans_days]).to eq(6)
+      expect(context.dig(:acute_chronic_ratio, :caveats))
+        .to include(a_string_matching(/not yet a true chronic load/))
       expect(payload[:notable]).to include(a_string_matching(/Only 6 days of history exist/))
     end
 
@@ -106,7 +128,81 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
       create(:activity, started_at: 40.days.ago)
       create(:activity, started_at: 2.days.ago)
 
-      expect(payload[:training_load][:sufficient_history_for_chronic_load]).to be(true)
+      expect(payload[:training_context][:sufficient_history_for_chronic_load]).to be(true)
+    end
+
+    it "counts the consecutive training day streak and the days since the last run" do
+      5.times { |i| create(:activity, started_at: i.days.ago) }
+
+      context = payload[:training_context]
+      expect(context[:consecutive_training_days]).to eq(5)
+      expect(context[:days_since_last_activity]).to eq(0)
+      expect(context[:rest_days_in_last_7]).to eq(2)
+    end
+
+    it "does not extend a streak across a rest day" do
+      create(:activity, started_at: 0.days.ago)
+      create(:activity, started_at: 1.day.ago)
+      # No activity two days ago.
+      create(:activity, started_at: 3.days.ago)
+
+      expect(payload[:training_context][:consecutive_training_days]).to eq(2)
+    end
+
+    it "reports a streak that has already ended alongside the days since it did" do
+      3.times { |i| create(:activity, started_at: (i + 4).days.ago) }
+
+      context = payload[:training_context]
+      expect(context[:consecutive_training_days]).to eq(3)
+      expect(context[:days_since_last_activity]).to eq(4)
+    end
+
+    it "surfaces a long unbroken block as a notable signal" do
+      9.times { |i| create(:activity, started_at: i.days.ago) }
+
+      expect(payload[:notable]).to include(a_string_matching(/9 consecutive training days/))
+    end
+
+    it "carries the next race so a period can be read against what it is preparing for" do
+      create(:activity, started_at: 2.days.ago)
+      create(:race, name: "Toronto Waterfront", race_date: Date.new(2026, 7, 5),
+        distance_meters: 42_195, status: "upcoming")
+
+      expect(payload[:training_context][:next_race]).to include(
+        name: "Toronto Waterfront", days_until: 20, distance_km: 42.2
+      )
+    end
+
+    it "omits the race block entirely when nothing is scheduled" do
+      create(:activity, started_at: 2.days.ago)
+
+      expect(payload[:training_context]).not_to have_key(:next_race)
+    end
+  end
+
+  describe "terrain" do
+    it "reports climbing per kilometre and bands the terrain" do
+      create(:activity, started_at: 2.days.ago, distance_meters: 10_000, elevation_gain_meters: 100)
+      create(:activity, started_at: 3.days.ago, distance_meters: 10_000, elevation_gain_meters: 50)
+
+      terrain = payload[:terrain]
+      expect(terrain[:total_elevation_gain_m]).to eq(150)
+      expect(terrain[:elevation_gain_per_km][:value]).to eq(7.5)
+      expect(terrain[:elevation_gain_per_km][:band]).to eq("gently rolling")
+    end
+
+    it "excludes activities missing either figure so they cannot drag the ratio toward flat" do
+      create(:activity, started_at: 2.days.ago, distance_meters: 10_000, elevation_gain_meters: 400)
+      create(:activity, started_at: 3.days.ago, distance_meters: 10_000, elevation_gain_meters: nil)
+
+      terrain = payload[:terrain]
+      expect(terrain[:elevation_gain_per_km][:value]).to eq(40.0)
+      expect(terrain[:elevation_gain_per_km][:sample_size]).to eq(1)
+      expect(terrain[:elevation_gain_per_km][:band]).to eq("hilly")
+    end
+
+    it "returns a null ratio rather than dividing by zero on an empty period" do
+      expect(payload[:terrain][:elevation_gain_per_km][:value]).to be_nil
     end
   end
 
@@ -170,6 +266,24 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
 
       # Averaging nil as zero would give 2.0.
       expect(payload[:aerobic_signals][:aerobic_decoupling_pct][:value]).to eq(4.0)
+    end
+
+    it "reports pace and efficiency factor both raw and grade-adjusted" do
+      create(:activity, :hilly, started_at: 2.days.ago, grade_adjusted_efficiency_factor: 1.40)
+
+      signals = payload[:aerobic_signals]
+      expect(signals[:average_pace_per_km][:value]).to eq(390.0)
+      expect(signals[:avg_grade_adjusted_pace_per_km][:value]).to eq(360.0)
+      expect(signals[:grade_adjusted_efficiency_factor][:value]).to eq(1.4)
+      expect(signals[:avg_grade_adjusted_pace_per_km][:guidance]).to match(/flat-equivalent/)
+    end
+
+    it "leaves the grade-adjusted figures null when the pipeline had no altitude stream" do
+      create(:activity, :without_computed_metrics, started_at: 2.days.ago)
+
+      signals = payload[:aerobic_signals]
+      expect(signals[:avg_grade_adjusted_pace_per_km][:value]).to be_nil
+      expect(signals[:grade_adjusted_efficiency_factor][:sample_size]).to eq(0)
     end
 
     it "ships the shared reading guidance with every signal" do
@@ -266,6 +380,30 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
 
       expect(payload[:comparison_to_previous_period][:distance_change_pct]).to eq(100.0)
     end
+
+    it "reports the grade-adjusted delta alongside the raw one" do
+      4.times { |i| create(:activity, started_at: (i + 1).days.ago, average_pace_per_km: 350.0, avg_grade_adjusted_pace_per_km: 348.0) }
+      4.times { |i| create(:activity, started_at: (i + 30).days.ago, average_pace_per_km: 370.0, avg_grade_adjusted_pace_per_km: 350.0) }
+
+      comparison = payload[:comparison_to_previous_period]
+      expect(comparison[:pace_change_seconds_per_km]).to eq(-20.0)
+      expect(comparison[:grade_adjusted_pace_change_seconds_per_km]).to eq(-2.0)
+    end
+
+    # The whole point of carrying both figures: raw pace improving while the
+    # grade-adjusted figure holds flat means the routes got easier.
+    it "calls out a raw improvement that the terrain explains" do
+      4.times { |i| create(:activity, started_at: (i + 1).days.ago, average_pace_per_km: 350.0, avg_grade_adjusted_pace_per_km: 348.0) }
+      4.times { |i| create(:activity, started_at: (i + 30).days.ago, average_pace_per_km: 380.0, avg_grade_adjusted_pace_per_km: 350.0) }
+
+      expect(payload[:notable]).to include(a_string_matching(/trends disagree/))
+    end
+
+    it "reports how much the terrain cost when the routes were hilly" do
+      3.times { |i| create(:activity, :hilly, started_at: (i + 1).days.ago) }
+
+      expect(payload[:notable]).to include(a_string_matching(/Terrain cost about 30\.0s\/km/))
+    end
   end
 
   describe "notable signals" do
@@ -298,8 +436,9 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
       create_list(:activity, 5)
 
       expect(payload.keys).to contain_exactly(
-        :period, :volume, :training_load, :intensity_distribution,
-        :aerobic_signals, :comparison_to_previous_period, :notable
+        :period, :training_context, :volume, :terrain, :training_load,
+        :intensity_distribution, :aerobic_signals,
+        :comparison_to_previous_period, :notable
       )
     end
 
