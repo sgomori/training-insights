@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_26_120700) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_27_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -40,6 +40,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120700) do
     t.float "pace_cv"
     t.jsonb "pace_zone_distribution"
     t.datetime "processed_at"
+    t.bigint "race_id"
     t.float "rtss_score"
     t.string "schema_version", null: false
     t.string "source", null: false
@@ -51,6 +52,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120700) do
     t.float "tss_score"
     t.datetime "updated_at", null: false
     t.index ["activity_type"], name: "index_activities_on_activity_type"
+    t.index ["race_id"], name: "index_activities_on_race_id", unique: true
     t.index ["source", "started_at"], name: "index_activities_on_source_and_started_at", unique: true
     t.index ["started_at"], name: "index_activities_on_started_at"
   end
@@ -160,6 +162,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_26_120700) do
     t.index ["status"], name: "index_webhook_logs_on_status"
   end
 
+  add_foreign_key "activities", "races", on_delete: :nullify
   add_foreign_key "activity_laps", "activities"
   add_foreign_key "activity_streams", "activities"
 end

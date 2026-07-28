@@ -72,6 +72,7 @@ module AnalyticalTools
         first_day = last_day - (days - 1)
         Activity
           .starting_between(zone.parse(first_day.to_s).beginning_of_day, zone.parse(last_day.to_s).end_of_day)
+          .includes(:race)
           .chronological
           .to_a
       end
@@ -176,30 +177,48 @@ module AnalyticalTools
       # Pace and efficiency factor appear twice: once raw, once grade-adjusted.
       # The pipeline normalises both against the altitude stream, and the
       # adjusted figure is the one that survives a change of route.
+      #
+      # Races are excluded here and nowhere else. A race is real load and real
+      # volume, so it counts fully in those sections, but it is a maximal effort
+      # and its aerobic figures are not comparable with a training run's. It
+      # would not be caught by the steady-state filter either: a well-executed
+      # race is evenly paced, so it passes the pace variability guard while
+      # distorting every average it enters.
       def aerobic_signals_for(activities)
+        training = activities.reject(&:race?)
+        excluded = activities.size - training.size
+
         {
+          basis: aerobic_basis(excluded),
           aerobic_decoupling_pct: MetricInterpretation.describe(
-            :aerobic_decoupling_pct, **mean_with_sample(activities.map(&:aerobic_decoupling_pct))
+            :aerobic_decoupling_pct, **mean_with_sample(training.map(&:aerobic_decoupling_pct))
           ),
           efficiency_factor: MetricInterpretation.describe(
-            :efficiency_factor, **mean_with_sample(activities.map(&:efficiency_factor), precision: 3)
+            :efficiency_factor, **mean_with_sample(training.map(&:efficiency_factor), precision: 3)
           ),
           grade_adjusted_efficiency_factor: MetricInterpretation.describe(
             :grade_adjusted_efficiency_factor,
-            **mean_with_sample(activities.map(&:grade_adjusted_efficiency_factor), precision: 3)
+            **mean_with_sample(training.map(&:grade_adjusted_efficiency_factor), precision: 3)
           ),
           average_pace_per_km: MetricInterpretation.describe(
-            :average_pace_per_km, **mean_with_sample(activities.map(&:average_pace_per_km), precision: 1)
+            :average_pace_per_km, **mean_with_sample(training.map(&:average_pace_per_km), precision: 1)
           ),
           avg_grade_adjusted_pace_per_km: MetricInterpretation.describe(
             :avg_grade_adjusted_pace_per_km,
-            **mean_with_sample(activities.map(&:avg_grade_adjusted_pace_per_km), precision: 1)
+            **mean_with_sample(training.map(&:avg_grade_adjusted_pace_per_km), precision: 1)
           ),
           pace_variability: MetricInterpretation.describe(
-            :pace_cv, **mean_with_sample(activities.map(&:pace_cv), precision: 3)
+            :pace_cv, **mean_with_sample(training.map(&:pace_cv), precision: 3)
           ),
-          cardiac_drift_bpm: cardiac_drift_signal(activities)
+          cardiac_drift_bpm: cardiac_drift_signal(training)
         }
+      end
+
+      def aerobic_basis(excluded)
+        return "All activities in the period." if excluded.zero?
+
+        "Training efforts only. #{excluded} race #{'effort'.pluralize(excluded)} excluded, " \
+          "because a maximal effort is not comparable with a training run."
       end
 
       # Cardiac drift assumes an even effort — on an interval session the figure
@@ -319,10 +338,20 @@ module AnalyticalTools
           signals << "Average aerobic decoupling is #{decoupling[:value]}%, above the 10% threshold for significant decoupling."
         end
 
-        variable = current.count { |a| a.pace_cv && a.pace_cv > STEADY_STATE_PACE_CV_MAX }
+        # Counted over training efforts only, so a race already withheld as a
+        # maximal effort is not also reported as excluded for its pacing.
+        training = current.reject(&:race?)
+        variable = training.count { |a| a.pace_cv && a.pace_cv > STEADY_STATE_PACE_CV_MAX }
         if variable.positive?
-          signals << "#{variable} of #{current.size} #{'activity'.pluralize(current.size)} had highly variable pace, " \
+          signals << "#{variable} of #{training.size} training #{'activity'.pluralize(training.size)} had highly variable pace, " \
                      "indicating structured or off-road sessions. Pace-sensitive metrics exclude them."
+        end
+
+        current.select(&:race?).each do |activity|
+          race = activity.race
+          signals << "Raced #{race.name} on #{race.race_date} " \
+                     "(#{(race.distance_meters / 1000.0).round(1)}km). " \
+                     "Counted in volume and load, excluded from the aerobic averages."
         end
 
         cost = terrain_cost_seconds_per_km(current)

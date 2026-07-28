@@ -30,7 +30,14 @@ module ToolRegistry
     Where a response carries a training_context block, read the period against
     it. Load state changes what a number means: a laboured run in the ninth
     consecutive training day and the same run after a rest week are different
-    facts, and only the context block distinguishes them.
+    facts, and only the context block distinguishes them. The same applies to a
+    recent race, which depresses the fortnight after it for reasons unrelated to
+    fitness.
+
+    Race efforts count fully toward volume and training load, but are excluded
+    from averages over aerobic signals, because a maximal effort is not
+    comparable with a training run. Each section states the basis it was
+    computed on.
   TEXT
 
   def self.tools

@@ -180,6 +180,69 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
     end
   end
 
+  describe "race efforts" do
+    # A race is real work, so it belongs in volume and load. It is also a
+    # maximal effort, so it must not sit in an average alongside easy runs.
+    let!(:race) do
+      create(:race, name: "Spring Half", race_date: Date.new(2026, 6, 7),
+        distance_meters: 21_097, status: "completed")
+    end
+
+    let!(:raced) do
+      create(:activity, started_at: Time.utc(2026, 6, 7, 13, 0), race: race,
+        distance_meters: 21_140.0, duration_seconds: 5_400.0,
+        efficiency_factor: 1.90, aerobic_decoupling_pct: 16.0, pace_cv: 0.04)
+    end
+
+    before do
+      3.times { |i| create(:activity, started_at: (i + 1).days.ago, efficiency_factor: 1.30, aerobic_decoupling_pct: 4.0) }
+    end
+
+    it "excludes the race from the aerobic averages" do
+      signals = payload[:aerobic_signals]
+
+      expect(signals[:efficiency_factor][:value]).to eq(1.3)
+      expect(signals[:aerobic_decoupling_pct][:value]).to eq(4.0)
+      expect(signals[:efficiency_factor][:sample_size]).to eq(3)
+    end
+
+    it "states the basis so the exclusion is visible rather than silent" do
+      expect(payload[:aerobic_signals][:basis]).to match(/1 race effort excluded/)
+    end
+
+    # An evenly paced race passes the steady-state filter, so the pace
+    # variability guard would never have caught it.
+    it "excludes the race even though its pacing looks like a steady effort" do
+      expect(payload[:aerobic_signals][:cardiac_drift_bpm][:sample_size]).to eq(3)
+    end
+
+    it "still counts the race in volume and training load" do
+      expect(payload[:volume][:activity_count]).to eq(4)
+      expect(payload[:volume][:total_distance_km]).to eq(51.1)
+      expect(payload[:training_load][:total_tss]).to eq(240.0)
+    end
+
+    it "names the race in the notable signals" do
+      expect(payload[:notable]).to include(a_string_matching(/Raced Spring Half on 2026-06-07 \(21\.1km\)/))
+    end
+
+    it "does not also report the race as excluded for its pacing" do
+      raced.update!(pace_cv: 0.35)
+
+      expect(payload[:notable]).not_to include(a_string_matching(/highly variable pace/))
+    end
+
+    it "reports how long ago the last race was" do
+      expect(payload[:training_context][:days_since_last_race]).to eq(8)
+    end
+
+    it "omits the field entirely when the runner has never raced" do
+      raced.update!(race: nil)
+
+      expect(payload[:training_context]).not_to have_key(:days_since_last_race)
+    end
+  end
+
   describe "terrain" do
     it "reports climbing per kilometre and bands the terrain" do
       create(:activity, started_at: 2.days.ago, distance_meters: 10_000, elevation_gain_meters: 100)

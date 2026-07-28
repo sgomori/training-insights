@@ -28,6 +28,7 @@ module Ingestion
 
         replace_laps(activity)
         replace_stream(activity)
+        RaceLinker.call(activity)
       end
 
       Result.new(activity: activity, status: status)

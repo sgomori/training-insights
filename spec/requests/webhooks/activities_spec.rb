@@ -170,6 +170,39 @@ RSpec.describe "POST /webhooks/activity" do
     end
   end
 
+  describe "race linking" do
+    let!(:runner) { create(:runner, timezone: "UTC") }
+
+    it "links an activity that lands on a scheduled race day" do
+      race = create(:race, race_date: Date.new(2026, 1, 15), distance_meters: 3_200,
+        status: "upcoming")
+
+      post_payload(payload)
+
+      expect(Activity.sole.race).to eq(race)
+      expect(race.reload).to have_attributes(status: "completed", result_time_seconds: 1_127)
+    end
+
+    it "leaves an ordinary training run unlinked" do
+      create(:race, race_date: Date.new(2026, 1, 15), distance_meters: 42_195, status: "upcoming")
+
+      post_payload(payload)
+
+      expect(Activity.sole.race).to be_nil
+    end
+
+    it "does not relink or duplicate on redelivery" do
+      race = create(:race, race_date: Date.new(2026, 1, 15), distance_meters: 3_200,
+        status: "upcoming")
+
+      post_payload(payload)
+      post_payload(payload)
+
+      expect(Activity.sole.race).to eq(race)
+      expect(Activity.races.count).to eq(1)
+    end
+  end
+
   describe "idempotency" do
     it "does not create a second activity for a redelivered payload" do
       post_payload(payload)

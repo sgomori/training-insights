@@ -3,6 +3,10 @@
 class Race < ApplicationRecord
   STATUSES = %w[upcoming completed cancelled].freeze
 
+  # The effort that ran it, linked on ingestion. Nullified rather than cascaded:
+  # deleting a race entered in error must not delete the run.
+  has_one :activity, dependent: :nullify, inverse_of: :race
+
   validates :name, presence: true
   validates :race_date, presence: true
   validates :distance_meters, presence: true, numericality: { greater_than: 0 }

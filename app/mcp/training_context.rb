@@ -47,8 +47,20 @@ class TrainingContext
       rest_days_in_last_7: rest_days_in_last_7,
       history_spans_days: history_spans_days,
       sufficient_history_for_chronic_load: sufficient_history_for_chronic_load?,
+      days_since_last_race: days_since_last_race,
       next_race: next_race
     }.compact
+  end
+
+  # A hard race suppresses the fortnight that follows it for reasons that have
+  # nothing to do with fitness, so how long ago the last one was changes how the
+  # period should be read. Not bounded by the chronic window: a race six weeks
+  # back is still the relevant fact when the runner is rebuilding from it.
+  def days_since_last_race
+    return @days_since_last_race if defined?(@days_since_last_race)
+
+    last = Activity.races.maximum(:started_at)
+    @days_since_last_race = last.nil? ? nil : (today - last.in_time_zone(zone).to_date).to_i
   end
 
   # Trailing 7 calendar days including today.
