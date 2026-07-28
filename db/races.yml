@@ -1,0 +1,42 @@
+# The declared race calendar.
+#
+# Races are the only records in this system that cannot be regenerated from an
+# upstream source: activities re-ingest from FIT files and health metrics
+# re-import from CSV, but a target time exists nowhere except the database. This
+# file is the durable copy — version controlled, reviewable in a diff, and
+# recoverable after any database rebuild.
+#
+# Apply it with `bin/rails races:sync`. The task is idempotent, so running it
+# twice changes nothing the second time. Preview with `DRY_RUN=1`.
+#
+# A race is identified by name and date together. Change either and the sync
+# treats it as a new race, leaving the old row behind.
+#
+# This file declares intent only. Whether a race was run, how long it took, and
+# which activity ran it are derived by Ingestion::RaceLinker when the activity
+# arrives, and a re-sync will never overwrite them. That is why `status` here
+# accepts only `upcoming` or `cancelled` — `completed` is the linker's to set.
+#
+# Fields:
+#   name                 required  Distinct within a given date.
+#   race_date            required  ISO 8601, in the runner's local timezone.
+#   distance_meters      required  Nominal race distance, not what the watch
+#                                  measured. 5000 / 10000 / 21097 / 42195.
+#   target_time_seconds  optional  Goal time. Read by the readiness analyses.
+#   status               optional  upcoming (default) or cancelled.
+#   notes                optional  Free text.
+#
+# Example:
+#
+# - name: Toronto Waterfront Marathon
+#   race_date: 2026-10-18
+#   distance_meters: 42195
+#   target_time_seconds: 12600
+#   notes: Goal race for the autumn block.
+#
+# - name: Spring Half
+#   race_date: 2026-04-26
+#   distance_meters: 21097
+#   status: cancelled
+
+[]

@@ -15,13 +15,23 @@ class Race < ApplicationRecord
   scope :upcoming, -> { where(status: "upcoming").order(:race_date) }
   scope :completed, -> { where(status: "completed").order(race_date: :desc) }
 
+  # Today in the runner's timezone, not the server's. Race day should not end
+  # early because midnight arrived in UTC first.
   def self.next_race
-    upcoming.where(race_date: Date.current..).first
+    upcoming.where(race_date: Runner.current_time_zone.today..).first
   end
 
   def days_until
     return nil unless race_date
 
-    (race_date - Date.current).to_i
+    (race_date - Runner.current_time_zone.today).to_i
+  end
+
+  # Seconds per kilometre required to hit the target, over the nominal race
+  # distance rather than whatever a watch will measure on the day.
+  def target_pace_per_km
+    return nil if target_time_seconds.nil? || distance_meters.to_f <= 0
+
+    (target_time_seconds / (distance_meters / 1000.0)).round(1)
   end
 end

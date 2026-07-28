@@ -166,11 +166,24 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
     it "carries the next race so a period can be read against what it is preparing for" do
       create(:activity, started_at: 2.days.ago)
       create(:race, name: "Toronto Waterfront", race_date: Date.new(2026, 7, 5),
-        distance_meters: 42_195, status: "upcoming")
+        distance_meters: 42_195, target_time_seconds: 12_600, status: "upcoming")
 
       expect(payload[:training_context][:next_race]).to include(
-        name: "Toronto Waterfront", days_until: 20, distance_km: 42.2
+        name: "Toronto Waterfront", days_until: 20, distance_km: 42.2,
+        target_time_seconds: 12_600, target_pace_per_km: 298.6
       )
+    end
+
+    # A target time is optional, so the absence has to be named rather than
+    # left as a missing key the client has to infer meaning from.
+    it "says plainly when a race has no target time" do
+      create(:activity, started_at: 2.days.ago)
+      create(:race, name: "Local 10K", race_date: Date.new(2026, 7, 5),
+        distance_meters: 10_000, target_time_seconds: nil, status: "upcoming")
+
+      race = payload[:training_context][:next_race]
+      expect(race).not_to have_key(:target_pace_per_km)
+      expect(race[:note]).to match(/No target time is set/)
     end
 
     it "omits the race block entirely when nothing is scheduled" do

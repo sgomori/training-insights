@@ -167,6 +167,10 @@ class TrainingContext
       .reverse
   end
 
+  # Goal pace is what makes the rest of the response interpretable: a 5:30/km
+  # easy run means one thing when the runner is chasing 4:15/km and another
+  # when they are chasing 5:45/km. A target time is optional, so the block says
+  # plainly when there is none rather than leaving a bare null to guess at.
   def next_race
     race = Race.next_race
     return nil if race.nil?
@@ -175,7 +179,10 @@ class TrainingContext
       name: race.name,
       date: race.race_date.to_s,
       days_until: race.days_until,
-      distance_km: (race.distance_meters / 1000.0).round(1)
-    }
+      distance_km: (race.distance_meters / 1000.0).round(1),
+      target_time_seconds: race.target_time_seconds,
+      target_pace_per_km: race.target_pace_per_km,
+      note: ("No target time is set for this race, so goal-pace comparisons are unavailable." if race.target_time_seconds.nil?)
+    }.compact
   end
 end
