@@ -7,6 +7,10 @@
 # Note on autoloading: `app/mcp` is an autoload root, so concrete tools live in
 # `app/mcp/analytical_tools/` and resolve as `AnalyticalTools::TheToolName`.
 class AnalyticalTool < MCP::Tool
+  # mean_with_sample, percent_change and standard_deviation as class methods, so
+  # every tool shares one implementation of the nil and sample-size rules.
+  extend MetricMath
+
   # Every tool on this server is read-only and safe to retry. MCP::Tool.inherited
   # resets annotations on each subclass, so they are re-applied here rather than
   # declared once on this class — otherwise every concrete tool would silently
@@ -43,20 +47,14 @@ class AnalyticalTool < MCP::Tool
       Runner.current_time_zone
     end
 
-    # Mean of the non-nil values, with the sample size that produced it. A bare
-    # average with no count is not self-contained, and nils must never be
-    # counted as zero.
-    def mean_with_sample(values, precision: 2)
-      present = values.compact
-      return { value: nil, sample_size: 0 } if present.empty?
+    # A period length is clamped rather than rejected. A client asking for ten
+    # years of history has made a reasonable request against an unreasonable
+    # corpus; answering for the longest window supported is more useful than an
+    # error, and the response states the window it actually used.
+    def days_param(value, default:, min: 1, max: 365)
+      return default if value.nil?
 
-      { value: (present.sum.to_f / present.size).round(precision), sample_size: present.size }
-    end
-
-    def percent_change(from, to, precision: 1)
-      return nil if from.nil? || to.nil? || from.zero?
-
-      (((to - from) / from.to_f) * 100).round(precision)
+      value.to_i.clamp(min, max)
     end
   end
 end

@@ -21,17 +21,17 @@ If no, the abstraction is too narrow. Also confirm it: leads with the most analy
 
 ## 3. Write the tool
 
-`app/mcp/tools/<tool_name>.rb`, subclassing the base tool. Deterministic Ruby only — database reads and arithmetic. No network calls, no `Anthropic::`, no AI of any kind inside `app/mcp/`.
+`app/mcp/analytical_tools/<tool_name>.rb`, subclassing the base tool. Deterministic Ruby only — database reads and arithmetic. No network calls, no `Anthropic::`, no AI of any kind inside `app/mcp/`.
 
 Handle the thin-data cases explicitly: no activities in the period, a single activity, and computed metrics that are `nil` because the pipeline lacked a required stream. Nils are excluded from aggregates, never coerced to zero.
 
 ## 4. Register it
 
-Add the class to `app/mcp/registry.rb`. That file is the single source of truth for what the server exposes — a tool that isn't listed doesn't exist.
+Add the class to `app/mcp/tool_registry.rb`. That file is the single source of truth for what the server exposes — a tool that isn't listed doesn't exist.
 
 ## 5. Spec it
 
-`spec/mcp/tools/<tool_name>_spec.rb`. Cover the happy path, the empty-data case, the single-activity case, and nil-metric handling. Assert on the response *shape*, not just values — the field names are a public contract that external MCP clients depend on.
+`spec/mcp/analytical_tools/<tool_name>_spec.rb`. Cover the happy path, the empty-data case, the single-activity case, and nil-metric handling. Assert on the response *shape*, not just values — the field names are a public contract that external MCP clients depend on.
 
 ## 6. Verify end to end
 
