@@ -63,6 +63,36 @@ FactoryBot.define do
     status { "upcoming" }
   end
 
+  # The four health metric types carry different keys, so the payload lives in
+  # `measurements` and the columns tools read are generated from it. Traits set
+  # the key the type is expected to carry.
+  factory :health_metric do
+    recorded_date { Date.current }
+    metric_type { "hrv" }
+    source { "garmin_csv" }
+    measurements { { "hrv_ms" => 62.0 } }
+
+    trait :hrv do
+      metric_type { "hrv" }
+      measurements { { "hrv_ms" => 62.0 } }
+    end
+
+    trait :resting_hr do
+      metric_type { "resting_hr" }
+      measurements { { "resting_hr_bpm" => 48 } }
+    end
+
+    trait :sleep do
+      metric_type { "sleep" }
+      measurements { { "sleep_score" => 84 } }
+    end
+
+    trait :weight do
+      metric_type { "weight" }
+      measurements { { "weight_kg" => 71.4 } }
+    end
+  end
+
   factory :api_key do
     sequence(:name) { |n| "client-#{n}" }
     token_digest { ApiKey.digest(SecureRandom.hex(8)) }

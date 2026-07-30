@@ -184,6 +184,62 @@ module MetricInterpretation
         band("moderate build", min: 5.0, max: 10.0),
         band("aggressive build", min: 10.0)
       ]
+    ),
+
+    long_run_pct_of_race_distance: Definition.new(
+      unit: "percent of race distance",
+      direction: "context_dependent",
+      guidance: "The buildup's longest run as a share of the race distance. What counts as adequate depends " \
+                "entirely on the distance: marathon programmes conventionally peak at 70-85% of race " \
+                "distance, while a 10k buildup routinely runs 150-200% of it. No reference bands are given, " \
+                "because one set of them would misread every distance but the one it was drawn from.",
+      bands: []
+    ),
+
+    taper_ratio: Definition.new(
+      unit: "ratio",
+      direction: "context_dependent",
+      guidance: "Most recent week's volume against the peak week of the buildup. Describes where in the " \
+                "load cycle the runner currently is; it says nothing about whether the taper was well timed.",
+      bands: [
+        band("deep taper or interruption", max: 0.5),
+        band("tapering", min: 0.5, max: 0.7),
+        band("easing", min: 0.7, max: 0.9),
+        band("at peak volume", min: 0.9, max: 1.1),
+        band("above the previous peak", min: 1.1)
+      ]
+    ),
+
+    hrv_ms: Definition.new(
+      unit: "milliseconds",
+      direction: "higher_is_better",
+      guidance: "Overnight heart rate variability. Only readable against this runner's own trailing " \
+                "baseline: absolute values vary by a factor of three between individuals, so no reference " \
+                "bands are given. A single reading well below baseline is a fatigue or illness signal; a " \
+                "sustained decline is a different fact from one bad night.",
+      bands: []
+    ),
+
+    resting_hr_bpm: Definition.new(
+      unit: "bpm",
+      direction: "lower_is_better",
+      guidance: "Overnight resting heart rate. Like HRV, meaningful only against the runner's own " \
+                "baseline, so no reference bands are given. An elevation of several beats over baseline " \
+                "commonly accompanies incomplete recovery, illness or heat.",
+      bands: []
+    ),
+
+    sleep_score: Definition.new(
+      unit: "score out of 100",
+      direction: "higher_is_better",
+      guidance: "The device's composite sleep score. Unlike HRV and resting heart rate this is already " \
+                "normalised, so the published bands apply directly.",
+      bands: [
+        band("poor", max: 60.0),
+        band("fair", min: 60.0, max: 80.0),
+        band("good", min: 80.0, max: 90.0),
+        band("excellent", min: 90.0)
+      ]
     )
   }.freeze
 

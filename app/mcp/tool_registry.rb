@@ -10,7 +10,9 @@ module ToolRegistry
     AnalyticalTools::GetActivities,
     AnalyticalTools::GetTrainingBlockSummary,
     AnalyticalTools::GetPaceProgression,
-    AnalyticalTools::GetPersonalRecords
+    AnalyticalTools::GetPersonalRecords,
+    AnalyticalTools::GetRaceReadiness,
+    AnalyticalTools::SuggestNextRun
   ].freeze
 
   SERVER_NAME = "training-insights"
