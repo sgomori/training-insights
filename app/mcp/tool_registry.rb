@@ -17,12 +17,16 @@ module ToolRegistry
 
   SERVER_NAME = "training-insights"
 
+  # Delivered on every initialize, so this carries the reading rules that span
+  # tools and nothing that belongs in an individual tool's description.
   INSTRUCTIONS = <<~TEXT.strip
     Analytical tools over a single runner's training history.
 
     Tools return shaped aggregations — volume, load, intensity distribution,
     derived signals and comparison points — not raw activity lists and not
     verdicts. Interpret the numbers yourself; the server does no reasoning.
+    get_activities is the one exception and returns individual efforts; reach for
+    it only when a question genuinely needs them.
 
     Units are metric throughout. Pace is seconds per kilometre, so a lower
     number is faster. Efficiency factor rises as fitness improves, while
@@ -33,7 +37,8 @@ module ToolRegistry
     Pace and efficiency factor are reported both raw and grade-adjusted. The
     grade-adjusted figures normalise for climbing, so they are the ones to
     compare across periods — a route change can move raw pace by more than a
-    season of training does.
+    season of training does. Where a response carries both and they disagree,
+    the disagreement is the finding: the routes changed, not the runner.
 
     Where a response carries a training_context block, read the period against
     it. Load state changes what a number means: a laboured run in the ninth
@@ -46,6 +51,17 @@ module ToolRegistry
     from averages over aerobic signals, because a maximal effort is not
     comparable with a training run. Each section states the basis it was
     computed on.
+
+    Two absences are deliberate rather than accidental, and a response will say
+    so where it matters. A figure may be missing because the pipeline could not
+    derive it — that is a gap in the source data, not a zero. And a delta or
+    trend may be suppressed because the sample behind it was too thin to carry
+    one; where that happens the response names which side was thin instead of
+    returning a bare null.
+
+    No route or GPS data exists anywhere in this server, and no tool reads into
+    an activity's raw streams. Anything phrased as a best segment within a run —
+    a fastest 5k inside a longer effort, for instance — cannot be answered.
   TEXT
 
   def self.tools

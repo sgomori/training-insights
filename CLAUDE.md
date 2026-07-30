@@ -144,6 +144,25 @@ When in doubt about exposing a field, err toward not exposing.
 | Deployment | Render — Starter web service plus Basic-1gb managed PostgreSQL. Fly.io was the original preference; its managed Postgres now starts at $38/mo, roughly double the alternative. |
 | Website chat → tools | The Anthropic MCP connector pointed at the public `/mcp` URL. Note this means chat cannot run against localhost without a tunnel. |
 
+## Open decisions
+
+Deliberately unresolved. Surface them rather than choosing silently.
+
+| Decision | State |
+|---|---|
+| Activity type scoping | Every aggregating tool counts all activity types; only `get_activities` filters on one. Invisible on a running-only corpus and silently wrong the first time a ride or a swim is ingested — it will enter volume, load and zone aggregates, and `get_personal_records` will offer a 10km ride as a 10k record. Decide before the first non-run arrives. |
+| MCP Resources and Prompts | Both capabilities are advertised and unused. A Resource carrying the methodology behind the metrics, and Prompts for the common questions, would strengthen the demo. Neither is in `V1_SCOPE.md`, so both need a scope decision rather than a quiet addition. |
+| `races:sync` on deploy | Not wired into `bin/render-build.sh`, deliberately. Revisit once the race calendar stabilises. |
+
+Two gaps in the source data shape what the tools can currently return. Both
+degrade explicitly, and neither is a statement about the runner:
+
+- `pace_zone_distribution` and `rtss_score` are null until the pipeline
+  environment carries `THRESHOLD_PACE` and `PACE_ZONE_*`. Until then
+  `get_pace_progression`'s intensity mode returns an unavailable block.
+- No health metrics exist until the n8n workflow lands, so `suggest_next_run`'s
+  recovery block names the metric types it is missing.
+
 ## Working with this codebase
 
 - Before adding a feature, check `V1_SCOPE.md` to confirm it's in scope. If it's explicitly out of scope, flag rather than build.
