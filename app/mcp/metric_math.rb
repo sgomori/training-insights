@@ -35,6 +35,24 @@ module MetricMath
     lower + ((upper - lower) * (position - position.floor))
   end
 
+  # Least-squares slope through [x, y] pairs: the change in y per unit of x.
+  # Used for trends over evenly spaced buckets, where a first-to-last difference
+  # would throw away every point in between and hand the whole trend to two.
+  def linear_slope(points)
+    return nil if points.size < 2
+
+    xs = points.map { |x, _y| x.to_f }
+    ys = points.map { |_x, y| y.to_f }
+    x_mean = xs.sum / xs.size
+    y_mean = ys.sum / ys.size
+
+    denominator = xs.sum { |x| (x - x_mean)**2 }
+    return nil if denominator.zero?
+
+    numerator = xs.each_with_index.sum { |x, i| (x - x_mean) * (ys[i] - y_mean) }
+    numerator / denominator
+  end
+
   # Population standard deviation, which is what Foster's monotony is defined
   # over: the seven days of a week are the whole population, not a sample drawn
   # from a larger one.

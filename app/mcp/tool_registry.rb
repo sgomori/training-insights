@@ -8,7 +8,9 @@ module ToolRegistry
     AnalyticalTools::GetTrainingLoad,
     AnalyticalTools::ComparePeriods,
     AnalyticalTools::GetActivities,
-    AnalyticalTools::GetTrainingBlockSummary
+    AnalyticalTools::GetTrainingBlockSummary,
+    AnalyticalTools::GetPaceProgression,
+    AnalyticalTools::GetPersonalRecords
   ].freeze
 
   SERVER_NAME = "training-insights"
