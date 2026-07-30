@@ -6,7 +6,9 @@ module ToolRegistry
   TOOLS = [
     AnalyticalTools::GetRecentActivitySummary,
     AnalyticalTools::GetTrainingLoad,
-    AnalyticalTools::ComparePeriods
+    AnalyticalTools::ComparePeriods,
+    AnalyticalTools::GetActivities,
+    AnalyticalTools::GetTrainingBlockSummary
   ].freeze
 
   SERVER_NAME = "training-insights"

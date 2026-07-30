@@ -22,6 +22,19 @@ module MetricMath
     (((to - from) / from.to_f) * 100).round(precision)
   end
 
+  # Linear-interpolated quantile, the definition NumPy and R use by default, so
+  # a figure quoted from here matches what a reader would get elsewhere.
+  def quantile(values, fraction)
+    present = values.compact.sort
+    return nil if present.empty?
+    return present.first.to_f if present.size == 1
+
+    position = (present.size - 1) * fraction
+    lower = present[position.floor]
+    upper = present[position.ceil]
+    lower + ((upper - lower) * (position - position.floor))
+  end
+
   # Population standard deviation, which is what Foster's monotony is defined
   # over: the seven days of a week are the whole population, not a sample drawn
   # from a larger one.
