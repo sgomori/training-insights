@@ -56,10 +56,26 @@ RSpec.describe AnalyticalTools::GetPersonalRecords do
       expect(best[:duration_seconds]).to eq(1_566)
     end
 
-    it "restates the pace as an equivalent time over the nominal distance" do
+    it "restates the effort as an equivalent time over the nominal distance" do
       run_on("2026-05-02", distance_meters: 5_400, duration_seconds: 1_566.0, average_pace_per_km: 290.0)
 
-      expect(record_for("5k")[:best][:equivalent_time_at_nominal_distance]).to eq(1_450)
+      best = record_for("5k")[:best]
+      # 1566s over 5.4km, scaled to 5km by Riegel: 1566 * (5.0/5.4) ** 1.06.
+      # Holding pace constant instead would credit 1450s.
+      expect(best[:equivalent_time_at_nominal_distance]).to eq(1_443)
+      expect(best[:equivalent_time_model]).to eq("Riegel, exponent 1.06")
+    end
+
+    # Within a +/-10% band a shorter effort should be faster, so raw pace still
+    # favours the short edge. Riegel-equivalent times settle it the other way.
+    it "does not hand the record to the short edge of the tolerance band" do
+      run_on("2026-05-01", distance_meters: 4_500, duration_seconds: 895.5, average_pace_per_km: 199.0)
+      run_on("2026-05-02", distance_meters: 5_500, duration_seconds: 1_100.0, average_pace_per_km: 200.0)
+
+      best = record_for("5k")[:best]
+      # 4.5km at 199s/km scales to 1001s; 5.5km at 200s/km scales to 994s.
+      expect(best[:actual_distance_km]).to eq(5.5)
+      expect(best[:equivalent_time_at_nominal_distance]).to eq(994)
     end
 
     it "omits a distance with no qualifying effort rather than reporting a null best" do
@@ -191,6 +207,7 @@ RSpec.describe AnalyticalTools::GetPersonalRecords do
     # complete efforts, not best segments.
     it "says these are complete efforts rather than segments" do
       expect(payload[:basis]).to match(/not segment records/)
+      expect(payload[:basis]).to match(/Riegel's endurance model/)
       expect(payload[:basis]).to match(/fastest 5km inside a longer run is not considered/)
     end
 

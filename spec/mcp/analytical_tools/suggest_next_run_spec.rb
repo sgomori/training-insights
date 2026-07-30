@@ -95,16 +95,29 @@ RSpec.describe AnalyticalTools::SuggestNextRun do
     end
 
     it "expresses the deviation in standard deviations, which is how HRV is read" do
-      # Baseline of 55, 60, 65 — a population spread of about 4.08.
+      # Ten preceding readings alternating 55 and 65: mean 60, population spread 5.
+      10.times { |i| reading("hrv", (Date.new(2026, 6, 14) - i).to_s, "hrv_ms" => i.even? ? 55.0 : 65.0) }
+      reading("hrv", "2026-06-15", "hrv_ms" => 48.0)
+
+      hrv = payload[:recovery_indicators][:hrv]
+      expect(hrv[:baseline]).to eq(60.0)
+      expect(hrv[:deviation_from_baseline]).to eq(-12.0)
+      expect(hrv[:deviation_in_standard_deviations]).to eq(-2.4)
+      expect(payload[:notable]).to include(a_string_matching(/hrv is 2\.4 standard deviations below/))
+    end
+
+    # A standard-deviation figure off three readings is an artefact of the sample,
+    # not a finding, so the signal is gated even though the field is still reported.
+    it "does not quote a standard-deviation signal off a thin baseline" do
       reading("hrv", "2026-06-12", "hrv_ms" => 55.0)
       reading("hrv", "2026-06-13", "hrv_ms" => 60.0)
       reading("hrv", "2026-06-14", "hrv_ms" => 65.0)
       reading("hrv", "2026-06-15", "hrv_ms" => 48.0)
 
       hrv = payload[:recovery_indicators][:hrv]
-      expect(hrv[:baseline]).to eq(60.0)
       expect(hrv[:deviation_in_standard_deviations]).to eq(-2.94)
-      expect(payload[:notable]).to include(a_string_matching(/hrv is 2\.94 standard deviations below/))
+      expect(hrv[:caveats]).to include(a_string_matching(/too few to read a standard-deviation figure from/))
+      expect(payload[:notable]).not_to include(a_string_matching(/standard deviations below/))
     end
 
     it "carries the shared reading guidance and gives HRV no absolute bands" do

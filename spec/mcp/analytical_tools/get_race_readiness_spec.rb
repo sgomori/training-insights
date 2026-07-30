@@ -113,14 +113,14 @@ RSpec.describe AnalyticalTools::GetRaceReadiness do
       run_on("2026-06-08", distance_meters: 32_000)
       run_on("2026-06-09", distance_meters: 12_000)
 
-      week = payload[:long_run_progression].find { |w| w[:week_start] == "2026-06-08" }
+      week = payload[:long_run_progression][:by_week].find { |w| w[:week_start] == "2026-06-08" }
       expect(week).to include(longest_run_km: 32.0, pct_of_race_distance: 75.8)
     end
 
     it "leaves the share null for a week with no runs rather than reporting zero" do
       run_on("2026-06-08", distance_meters: 32_000)
 
-      empty = payload[:long_run_progression].find { |w| w[:week_start] == "2026-06-15" }
+      empty = payload[:long_run_progression][:by_week].find { |w| w[:week_start] == "2026-06-15" }
       expect(empty).to include(longest_run_km: nil, pct_of_race_distance: nil)
     end
 
@@ -252,17 +252,51 @@ RSpec.describe AnalyticalTools::GetRaceReadiness do
     end
 
     it "recomputes the buildup figures for each past race of comparable distance" do
+      # History reaches back past the nominal window start of 2025-06-29, so the
+      # past buildup covers all sixteen weeks.
+      run_on("2025-06-29", distance_meters: 5_000)
       # Both in the week beginning 2025-09-08, so it is the peak week at 45km.
       run_on("2025-09-09", distance_meters: 30_000)
       run_on("2025-09-11", distance_meters: 15_000)
       run_on("2025-10-19", distance_meters: 42_300, race: past_marathon)
 
-      comparison = payload[:comparison_to_past_buildups].first
+      comparison = payload[:comparison_to_past_buildups][:past].first
       expect(comparison).to include(
         race_name: "Autumn Marathon", race_date: "2025-10-19", distance_km: 42.2,
-        result_time_seconds: 13_140, peak_week_km: 45.0
+        result_time_seconds: 13_140, peak_week_km: 45.0,
+        weeks_covered: 16.0, history_covers_full_buildup: true
       )
       expect(comparison[:result_pace_per_km]).to eq(311.4)
+    end
+
+    # The target buildup is truncated at the start of history; a past one has to
+    # be truncated the same way or the two are not comparable. Dividing 45km by a
+    # nominal 16 weeks reports 2.8km a week beside a 45km peak week — both figures
+    # correct, the pair of them false — and a client reading that against a
+    # current 40km a week sees a fourteenfold build that never happened.
+    it "truncates a past buildup at the start of history, as it does the target's" do
+      run_on("2025-09-09", distance_meters: 30_000)
+      run_on("2025-09-11", distance_meters: 15_000)
+      run_on("2025-10-19", distance_meters: 42_300, race: past_marathon)
+
+      comparison = payload[:comparison_to_past_buildups][:past].first
+      expect(comparison[:weeks_covered]).to eq(5.7)
+      expect(comparison[:history_covers_full_buildup]).to be(false)
+      expect(comparison[:average_weekly_km]).to eq(7.9)
+      expect(payload[:comparison_to_past_buildups][:basis])
+        .to match(/truncated where history does not reach back/)
+    end
+
+    # Without the target in the same key shape, the block whose purpose is a
+    # side-by-side leaves the client assembling one side of it from other blocks.
+    it "reports the target buildup in the same shape as the past ones" do
+      run_on("2026-06-08", distance_meters: 30_000)
+
+      comparison = payload[:comparison_to_past_buildups]
+      expect(comparison[:this_buildup].keys).to eq(comparison[:past].first.keys)
+      expect(comparison[:this_buildup]).to include(
+        race_name: "Toronto Waterfront", longest_run_km: 30.0, result_time_seconds: nil
+      )
     end
 
     # The race is reported as the result, not as the buildup's longest run.
@@ -270,34 +304,34 @@ RSpec.describe AnalyticalTools::GetRaceReadiness do
       run_on("2025-09-09", distance_meters: 30_000)
       run_on("2025-10-19", distance_meters: 42_300, race: past_marathon)
 
-      expect(payload[:comparison_to_past_buildups].first[:longest_run_km]).to eq(30.0)
+      expect(payload[:comparison_to_past_buildups][:past].first[:longest_run_km]).to eq(30.0)
     end
 
     it "excludes races of a different distance" do
       create(:race, name: "Spring Half", race_date: Date.new(2026, 4, 12), distance_meters: 21_097,
         result_time_seconds: 5_512, status: "completed")
 
-      expect(payload[:comparison_to_past_buildups].map { |c| c[:race_name] }).to eq([ "Autumn Marathon" ])
+      expect(payload[:comparison_to_past_buildups][:past].map { |c| c[:race_name] }).to eq([ "Autumn Marathon" ])
     end
 
     it "falls back to the linked activity's duration when the race has no recorded result" do
       past_marathon.update!(result_time_seconds: nil)
       run_on("2025-10-19", distance_meters: 42_300, duration_seconds: 13_000.0, race: past_marathon)
 
-      expect(payload[:comparison_to_past_buildups].first[:result_time_seconds]).to eq(13_000)
+      expect(payload[:comparison_to_past_buildups][:past].first[:result_time_seconds]).to eq(13_000)
     end
 
     it "says plainly when there is nothing to compare against" do
       past_marathon.destroy!
 
-      expect(payload[:comparison_to_past_buildups]).to eq([])
+      expect(payload[:comparison_to_past_buildups][:past]).to eq([])
       expect(payload[:notable]).to include(a_string_matching(/no previous buildup to compare against/))
     end
 
     it "does not compare the target race against itself" do
       result = described_class.call(race_id: past_marathon.id).structured_content
 
-      expect(result[:comparison_to_past_buildups].map { |c| c[:race_name] }).not_to include("Autumn Marathon")
+      expect(result[:comparison_to_past_buildups][:past].map { |c| c[:race_name] }).not_to include("Autumn Marathon")
     end
   end
 

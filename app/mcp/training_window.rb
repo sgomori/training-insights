@@ -172,7 +172,9 @@ class TrainingWindow
 
   def intensity_distribution
     {
-      basis: "duration_weighted",
+      basis: "Duration-weighted across every activity in the period, race efforts included. " \
+             "Zone percentages are per-activity, so combining them without weighting by duration " \
+             "would count a 20-minute recovery jog equally with a 3-hour long run.",
       hr_zones_pct: zones(:hr_zone_distribution),
       pace_zones_pct: zones(:pace_zone_distribution)
     }
@@ -183,7 +185,8 @@ class TrainingWindow
   # recovery jog equally with a 3-hour long run.
   def zones(column)
     contributing = activities.select { |a| a.public_send(column).present? && a.duration_seconds.to_f.positive? }
-    return { zones: nil, activities_contributing: 0 } if contributing.empty?
+    # Same key set on both paths, so a client reads one shape rather than two.
+    return { zones: nil, activities_contributing: 0, hours_contributing: 0.0 } if contributing.empty?
 
     total_duration = contributing.sum(&:duration_seconds)
     totals = Hash.new(0.0)
@@ -262,6 +265,7 @@ class TrainingWindow
           week_start: week_start,
           window_from: from,
           window_to: to,
+          today: zone.today,
           activities: by_week.fetch(week_start, []),
           zone: zone
         )
@@ -273,10 +277,11 @@ class TrainingWindow
   class WeeklyBucket
     attr_reader :week_start, :activities
 
-    def initialize(week_start:, window_from:, window_to:, activities:, zone:)
+    def initialize(week_start:, window_from:, window_to:, today:, activities:, zone:)
       @week_start = week_start
       @window_from = window_from
       @window_to = window_to
+      @today = today
       @activities = activities
       @zone = zone
     end
@@ -285,14 +290,30 @@ class TrainingWindow
       week_start + 6
     end
 
-    # The part of the week that falls inside the window. A bucket is only
-    # comparable with its neighbours when this covers all seven days.
+    # The part of the week that falls inside the window.
     def days_in_window
       (last_day_in_window - first_day_in_window).to_i + 1
     end
 
+    # All seven days fall inside the window. A geometric fact about the window,
+    # which is not the same as the week being over.
     def complete?
       days_in_window == 7
+    end
+
+    # The week has not finished yet. A window ending today always has one of
+    # these, and on the last day of a week it is also `complete?` — every one of
+    # its days is inside the window, but the day itself is not over and the long
+    # run may still be ahead.
+    def in_progress?
+      week_end >= @today
+    end
+
+    # The test any week-over-week figure must apply. Comparing a week still being
+    # run against finished ones reports the calendar as a training change: a week
+    # with six of seven days done looks like a taper, once every seven days.
+    def comparable?
+      complete? && !in_progress?
     end
 
     def activity_count
@@ -318,22 +339,37 @@ class TrainingWindow
       activities.count { |a| a.tss_score.nil? }
     end
 
-    # Load per calendar day across the in-window part of the week, rest days
-    # included as zero.
+    # Load per calendar day across the in-window part of the week. A rest day is
+    # 0.0; a day the runner trained on but whose load could not be derived is nil.
     #
-    # This inverts the project-wide rule that a missing value is never a zero,
-    # and the inversion is deliberate: a day with no run genuinely carries no
-    # load, which is a different fact from an activity whose tss_score is nil
-    # because a stream was missing. Foster's monotony is defined over the days
-    # of the week, so the rest days have to be present as zeros or the standard
-    # deviation is taken over the wrong population.
+    # The zero for a rest day inverts the project-wide rule that a missing value
+    # is never a zero, and the inversion is deliberate: a day with no run
+    # genuinely carries no load, and Foster's monotony is defined over the seven
+    # days of the week, so the rest days have to be present as zeros or the
+    # standard deviation is taken over the wrong population.
+    #
+    # The nil for an unscored training day is the other half of that same
+    # distinction, and it is the half that is easy to lose. Coercing it to zero
+    # puts a day that was trained into the population as a rest day: on a week of
+    # 60/40/60/40/60 plus one unscored session it drops the mean from 51 to 37 and
+    # the monotony from 1.84 to 1.49, moving the week a whole band. Callers must
+    # decide what to do with a nil day rather than being handed a fabricated zero.
     def daily_tss
-      totals = Hash.new(0.0)
+      scored = Hash.new(0.0)
+      unscored = Set.new
+
       activities.each do |activity|
-        totals[activity.started_at.in_time_zone(@zone).to_date] += activity.tss_score.to_f
+        date = activity.started_at.in_time_zone(@zone).to_date
+        if activity.tss_score.nil?
+          unscored << date
+        else
+          scored[date] += activity.tss_score
+        end
       end
 
-      (first_day_in_window..last_day_in_window).map { |date| totals[date] }
+      (first_day_in_window..last_day_in_window).map do |date|
+        unscored.include?(date) && !scored.key?(date) ? nil : scored[date]
+      end
     end
 
     def to_h
@@ -345,6 +381,7 @@ class TrainingWindow
         longest_run_km: longest_run_km,
         tss: tss,
         complete_week: complete?,
+        week_in_progress: in_progress?,
         days_in_window: days_in_window
       }
     end

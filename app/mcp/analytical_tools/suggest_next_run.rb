@@ -54,6 +54,10 @@ module AnalyticalTools
     # Trailing days a recovery reading is compared against.
     BASELINE_DAYS = 28
 
+    # Below this many preceding readings a baseline is too thin to quote a
+    # standard-deviation figure against as though it meant something.
+    MIN_BASELINE_READINGS = 7
+
     # A recovery reading older than this is history rather than a recovery
     # indicator, and the response says how old every reading is.
     STALE_READING_DAYS = 3
@@ -184,9 +188,10 @@ module AnalyticalTools
         if baseline[:sample_size].zero?
           caveats << "No preceding readings, so there is no baseline to compare against. " \
                      "This metric is not interpretable from a single value."
-        elsif baseline[:sample_size] < 7
+        elsif baseline[:sample_size] < MIN_BASELINE_READINGS
           caveats << "Baseline rests on only #{baseline[:sample_size]} preceding " \
-                     "#{'reading'.pluralize(baseline[:sample_size])}."
+                     "#{'reading'.pluralize(baseline[:sample_size])}, too few to read a " \
+                     "standard-deviation figure from."
         end
 
         caveats
@@ -196,7 +201,9 @@ module AnalyticalTools
         {
           basis: "Duration-weighted share of time in heart rate zones 1 and 2. The 80/20 convention holds " \
                  "that roughly #{EASY_TARGET_PCT.to_i}% of training time should be easy; the deviation is " \
-                 "reported, not judged.",
+                 "reported, not judged. Mapping zones 1 and 2 onto \"easy\" assumes zone 2 tops out near " \
+                 "the first lactate threshold, which holds for the pipeline's default percent-of-threshold " \
+                 "boundaries but not necessarily for hand-configured fixed-BPM zones.",
           last_7d: easy_share(TrainingWindow.ending(zone.today, days: 7, zone: zone)),
           last_28d: easy_share(TrainingWindow.ending(zone.today, days: 28, zone: zone))
         }
@@ -246,7 +253,10 @@ module AnalyticalTools
           }
         end
 
-        chronic_total = chronic_weekly * (TrainingContext::CHRONIC_DAYS / 7.0)
+        # Derived from CHRONIC_DAYS rather than hard-coded, so the algebra below
+        # cannot silently disagree with TrainingContext if the window changes.
+        weeks_in_chronic = TrainingContext::CHRONIC_DAYS / 7.0
+        chronic_total = chronic_weekly * weeks_in_chronic
 
         {
           basis: "Additional TSS that would put the acute:chronic ratio at each threshold if it were run " \
@@ -256,7 +266,8 @@ module AnalyticalTools
           chronic_weekly_tss: chronic_weekly.round(1),
           current_ratio: context.acute_chronic_ratio,
           additional_tss_to_reach: ACWR_THRESHOLDS.map do |threshold|
-            headroom = ((threshold * chronic_total) - (4 * acute)) / (4 - threshold)
+            headroom = ((threshold * chronic_total) - (weeks_in_chronic * acute)) /
+                       (weeks_in_chronic - threshold)
 
             {
               ratio_threshold: threshold,
@@ -359,7 +370,10 @@ module AnalyticalTools
           next if reading.nil?
 
           sds = reading[:deviation_in_standard_deviations]
-          if sds && sds.abs >= 1.5
+          # Gated on a baseline thick enough to carry a spread. Quoting "2.9
+          # standard deviations below baseline" off three readings reads as a
+          # finding when it is an artefact of the sample.
+          if sds && sds.abs >= 1.5 && reading[:baseline_sample_size].to_i >= MIN_BASELINE_READINGS
             direction = sds.negative? ? "below" : "above"
             signals << "#{type} is #{sds.abs} standard deviations #{direction} its " \
                        "#{BASELINE_DAYS}-day baseline (#{reading[:value]} against #{reading[:baseline]})."

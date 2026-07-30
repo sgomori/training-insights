@@ -78,6 +78,7 @@ module AnalyticalTools
         buckets = buildup[:window].weekly_buckets
         peak = peak_week(buckets)
         pace_work = race_pace_work(buildup[:window], target)
+        past = past_races(target, zone)
 
         shaped(
           race: race_block(target, zone),
@@ -89,8 +90,8 @@ module AnalyticalTools
           taper_status: taper_status(buckets, peak),
           race_pace_work: pace_work,
           aerobic_trend: aerobic_trend(buckets),
-          comparison_to_past_buildups: comparison_to_past_buildups(target, zone),
-          notable: notable_signals(target, buildup, buckets, peak, pace_work, zone)
+          comparison_to_past_buildups: comparison_to_past_buildups(target, buildup, past, zone),
+          notable: notable_signals(target, buildup, buckets, peak, pace_work, past)
         )
       end
 
@@ -116,10 +117,14 @@ module AnalyticalTools
         target_from_race(race)
       end
 
+      # The result is resolved once, here, falling back to the linked effort's
+      # duration when the calendar carries no recorded time. Every caller then
+      # reads one already-resolved figure rather than re-deriving the fallback.
       def target_from_race(race)
         Target.new(
           name: race.name, date: race.race_date, distance_meters: race.distance_meters,
-          target_time_seconds: race.target_time_seconds, result_time_seconds: race.result_time_seconds,
+          target_time_seconds: race.target_time_seconds,
+          result_time_seconds: race.result_time_seconds || race.activity&.duration_seconds&.round,
           status: race.status, race_id: race.id
         )
       end
@@ -180,8 +185,11 @@ module AnalyticalTools
       def buildup_window(target, zone)
         nominal_from = target.date - (BUILDUP_WEEKS * 7)
         earliest = Activity.minimum(:started_at)&.in_time_zone(zone)&.to_date
-        from = [ nominal_from, earliest ].compact.max
         to = [ target.date - 1, zone.today ].min
+        # Clamped to `to`: history can begin after the buildup window closes — a
+        # race last week with the first ingested activity yesterday — and an
+        # inverted range would give a zero-length window to divide by.
+        from = [ [ nominal_from, earliest ].compact.max, to ].min
 
         window = TrainingWindow.between(from, to, zone: zone)
         {
@@ -230,23 +238,39 @@ module AnalyticalTools
         end
       end
 
+      # The share is routed through MetricInterpretation rather than emitted bare.
+      # "76%" reads as low to a client thinking about 10k races and as textbook to
+      # one thinking about marathons, and the guidance is what distinguishes them.
       def long_run_progression(buckets, target)
         race_km = target.distance_meters / 1000.0
+        peak_share = nil
 
-        buckets.map do |bucket|
+        series = buckets.map do |bucket|
           longest = bucket.longest_run_km
+          share = longest && race_km.positive? ? ((longest / race_km) * 100).round(1) : nil
+          peak_share = [ peak_share, share ].compact.max
 
           {
             week_start: bucket.week_start.to_s,
             longest_run_km: longest,
-            pct_of_race_distance: (longest && race_km.positive? ? ((longest / race_km) * 100).round(1) : nil),
-            complete_week: bucket.complete?
+            pct_of_race_distance: share,
+            complete_week: bucket.complete?,
+            week_in_progress: bucket.in_progress?
           }
         end
+
+        {
+          longest_run_pct_of_race_distance: MetricInterpretation.describe(
+            :long_run_pct_of_race_distance, value: peak_share
+          ),
+          by_week: series
+        }
       end
 
+      # Whole and finished weeks only. A week still being run understates itself,
+      # and would never be named the peak however hard it turns out to be.
       def peak_week(buckets)
-        candidates = buckets.select { |bucket| bucket.complete? && bucket.activity_count.positive? }
+        candidates = buckets.select { |bucket| bucket.comparable? && bucket.activity_count.positive? }
         candidates = buckets.select { |bucket| bucket.activity_count.positive? } if candidates.empty?
         candidates.max_by { |bucket| bucket.activities.filter_map(&:distance_meters).sum }
       end
@@ -309,9 +333,12 @@ module AnalyticalTools
           longest_km_near_target: matching.filter_map(&:distance_meters).max&.then { |m| (m / 1000.0).round(1) },
           activities_measurable: measurable,
           basis: "Training efforts whose whole-activity grade-adjusted pace fell within " \
-                 "#{(RACE_PACE_TOLERANCE * 100).round}% of goal pace. Grade-adjusted, because race pace on " \
-                 "a hill is not race pace. Whole activities only, so a long run with a race-pace finish " \
-                 "does not count — its average is slower than the segment that mattered. " \
+                 "#{(RACE_PACE_TOLERANCE * 100).round}% of goal pace. Grade-adjusted on the training side, " \
+                 "because race pace on a hill is not race pace. The goal pace itself is not grade-adjusted " \
+                 "— it is the target time over the nominal distance — so this comparison assumes a flat " \
+                 "course. On a hilly one the grade-adjusted pace needed to hit the target is faster than " \
+                 "the figure here, and the count will read high. Whole activities only, so a long run with " \
+                 "a race-pace finish does not count: its average is slower than the segment that mattered. " \
                  "#{window.training_only.size - measurable} training efforts carry no grade-adjusted pace."
         }
       end
@@ -336,27 +363,63 @@ module AnalyticalTools
 
       # The payoff from race linkage: for every past race of comparable distance,
       # the same buildup figures alongside the result they produced.
-      def comparison_to_past_buildups(target, zone)
-        past_races(target, zone).map do |race|
-          window = TrainingWindow.between(
-            race.race_date - (BUILDUP_WEEKS * 7), race.race_date - 1, zone: zone
-          )
-          complete = window.weekly_buckets.select(&:complete?)
-          peak = complete.max_by { |bucket| bucket.distance_km }
+      #
+      # The target buildup appears in the same key shape as the past ones. Without
+      # it the client has to reassemble peak week, longest run and average weekly
+      # volume for the target from other blocks in order to use the very block
+      # whose purpose is a side-by-side.
+      #
+      # Every buildup here is truncated at the start of history exactly as the
+      # target's is, and reports weeks_covered. Dividing a total by a nominal 16
+      # weeks when only one week of training could have existed reported 2.8km per
+      # week beside a 45km peak week — both figures correct, the pair of them
+      # false — and a client comparing that against a current 40km per week would
+      # read a fourteenfold increase that never happened.
+      def comparison_to_past_buildups(target, buildup, past, zone)
+        {
+          basis: "Each buildup is the #{BUILDUP_WEEKS} weeks before its race, ending the day before it, " \
+                 "truncated where history does not reach back that far. Compare per-week figures across " \
+                 "buildups of differing weeks_covered; totals are not comparable between them. " \
+                 "history_covers_full_buildup says whether the window was cut short.",
+          this_buildup: buildup_summary(target, buildup[:window]),
+          past: past.map { |race| past_buildup_summary(race, zone) }
+        }
+      end
 
-          {
-            race_name: race.name,
-            race_date: race.race_date.to_s,
-            distance_km: (race.distance_meters / 1000.0).round(1),
-            result_time_seconds: result_seconds(race),
-            result_pace_per_km: result_pace(race),
-            peak_week_km: peak&.distance_km,
-            longest_run_km: window.volume[:longest_run_km],
-            average_weekly_km: (window.total_distance_meters / 1000.0 / window.weeks).round(1),
-            total_tss: window.total_tss.round(1),
-            weeks_of_history: complete.size
-          }.compact
-        end
+      def past_buildup_summary(race, zone)
+        buildup_summary(target_from_race(race), truncated_buildup(race.race_date, zone))
+      end
+
+      # The buildup window for any race, truncated at the start of history the
+      # same way the target's is.
+      def truncated_buildup(race_date, zone)
+        nominal_from = race_date - (BUILDUP_WEEKS * 7)
+        earliest = Activity.minimum(:started_at)&.in_time_zone(zone)&.to_date
+        to = race_date - 1
+
+        TrainingWindow.between([ [ nominal_from, earliest ].compact.max, to ].min, to, zone: zone)
+      end
+
+      # One key set for the target buildup and every past one, result keys
+      # included and null where the race has not been run. Two shapes would put
+      # the client back to assembling the comparison itself.
+      def buildup_summary(target, window)
+        peak = window.weekly_buckets.select { |bucket| bucket.comparable? && bucket.activity_count.positive? }
+          .max_by(&:distance_km)
+
+        {
+          race_name: target.name,
+          race_date: target.date.to_s,
+          distance_km: target.distance_km,
+          result_time_seconds: target.result_time_seconds,
+          result_pace_per_km: result_pace(target.result_time_seconds, target.distance_meters),
+          peak_week_km: peak&.distance_km,
+          longest_run_km: window.volume[:longest_run_km],
+          average_weekly_km: (window.total_distance_meters / 1000.0 / window.weeks).round(1),
+          total_tss: window.total_tss.round(1),
+          weeks_covered: window.weeks.round(1),
+          history_covers_full_buildup: window.days >= BUILDUP_WEEKS * 7
+        }
       end
 
       def past_races(target, zone)
@@ -364,6 +427,7 @@ module AnalyticalTools
         band = (target.distance_meters - tolerance)..(target.distance_meters + tolerance)
 
         Race.completed
+          .includes(:activity)
           .where(race_date: ...target.date)
           .where(distance_meters: band)
           .where.not(id: target.race_id)
@@ -371,20 +435,15 @@ module AnalyticalTools
           .select { |race| race.race_date <= zone.today }
       end
 
-      def result_seconds(race)
-        race.result_time_seconds || race.activity&.duration_seconds&.round
+      def result_pace(seconds, distance_meters)
+        return nil if seconds.nil? || distance_meters.to_f <= 0
+
+        (seconds / (distance_meters / 1000.0)).round(1)
       end
 
-      def result_pace(race)
-        seconds = result_seconds(race)
-        return nil if seconds.nil? || race.distance_meters.to_f <= 0
-
-        (seconds / (race.distance_meters / 1000.0)).round(1)
-      end
-
-      def notable_signals(target, buildup, buckets, peak, pace_work, zone)
+      def notable_signals(target, buildup, buckets, peak, pace_work, past)
         window = buildup[:window]
-        days_until = (target.date - zone.today).to_i
+        days_until = (target.date - window.zone.today).to_i
         signals = []
 
         signals.concat(timing_signals(target, buildup, days_until))
@@ -399,7 +458,7 @@ module AnalyticalTools
 
         # Reported either way: whether a comparable past race exists is a fact
         # about the calendar, not about the buildup that has been run so far.
-        signals.concat(past_buildup_signals(target, zone))
+        signals.concat(past_buildup_signals(target, past))
         signals
       end
 
@@ -443,9 +502,13 @@ module AnalyticalTools
 
         ratio = (latest.distance_km / peak.distance_km).round(2)
         band = MetricInterpretation.describe(:taper_ratio, value: ratio)[:band]
+        # notable is the first thing a client reads, so the caveat travels with
+        # the number here too rather than only on the structured field.
+        caveat = taper_caveats(latest).first
 
-        [ "The most recent week covered #{latest.distance_km}km against a peak of #{peak.distance_km}km " \
-          "#{weeks_since} #{'week'.pluralize(weeks_since)} earlier — a ratio of #{ratio} (#{band})." ]
+        [ [ "The most recent week covered #{latest.distance_km}km against a peak of " \
+            "#{peak.distance_km}km #{weeks_since} #{'week'.pluralize(weeks_since)} earlier — " \
+            "a ratio of #{ratio} (#{band}).", caveat ].compact.join(" ") ]
       end
 
       def race_pace_signals(pace_work, target)
@@ -459,9 +522,7 @@ module AnalyticalTools
           "activities only, so race-pace segments inside longer runs are invisible to it." ]
       end
 
-      def past_buildup_signals(target, zone)
-        races = past_races(target, zone)
-
+      def past_buildup_signals(target, races)
         if races.empty?
           return [ "No past race within #{(COMPARABLE_DISTANCE_TOLERANCE * 100).round}% of " \
                    "#{target.distance_km}km has been completed, so there is no previous buildup to " \

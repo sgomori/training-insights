@@ -268,9 +268,12 @@ module AnalyticalTools
                    "A session can qualify on more than one rule, and qualified_as says which."
 
         scored = window.activities.count(&:tss_score)
-        if scored.positive? && scored < MIN_ACTIVITIES_FOR_QUARTILE
-          signals << "Only #{scored} #{'activity'.pluralize(scored)} in the block carry a TSS, " \
-                     "so the top-quartile load rule was not applied."
+        if scored.zero?
+          signals << "No activity in the block carries a TSS, so the top-quartile load rule " \
+                     "could not be applied at all."
+        elsif scored < MIN_ACTIVITIES_FOR_QUARTILE
+          signals << "Only #{scored} #{'activity'.pluralize(scored)} in the block #{scored == 1 ? 'carries' : 'carry'} " \
+                     "a TSS, so the top-quartile load rule was not applied."
         end
 
         no_zones = window.activities.count { |a| a.hr_zone_distribution.blank? }

@@ -94,24 +94,17 @@ module AnalyticalTools
         window = TrainingWindow.ending(zone.today, days: days, zone: zone)
 
         filter = resolve_filter(distance_bucket, intensity, window)
-        buckets = series_buckets(window, bucket_weeks, zone)
-        series = buckets.map { |bucket| summarise(bucket, filter) }
-
-        # Slopes are computed once, against each bucket's position in the full
-        # series rather than its position among the usable ones. A skipped bucket
-        # is a gap in time, and re-indexing around it would compress the x-axis
-        # and overstate every trend.
-        usable = series.each_with_index.select { |row, _index| row[:sufficient_sample] }
-        slopes = TREND_METRICS.index_with { |column| slope_for(usable, column) }
+        series = series_buckets(window, bucket_weeks).map { |bucket| summarise(bucket, filter) }
+        slopes = TREND_METRICS.index_with { |column| slope_for(series, column) }
 
         shaped(
           filter_applied: filter[:description],
           period: window.period.merge(bucket_weeks: bucket_weeks, buckets: series.size),
           training_context: TrainingContext.current(zone: zone).to_h,
           series: series,
-          trend: trend(bucket_weeks, usable, slopes),
+          trend: trend(bucket_weeks, series, slopes),
           race_markers: race_markers(window, filter),
-          notable: notable_signals(window, series, filter, usable, slopes)
+          notable: notable_signals(window, series, filter, slopes)
         )
       end
 
@@ -196,75 +189,125 @@ module AnalyticalTools
         distribution.max_by { |_zone, pct| pct.to_f }&.first
       end
 
-      # Equal-width buckets walking back from the end of the window, so the most
-      # recent bucket is always a full one and any clipping lands on the oldest.
-      # A short final bucket at the recent end would be the one the client reads
-      # the trend from.
-      def series_buckets(window, bucket_weeks, zone)
+      # Equal-width date ranges walking back from the end of the window, so the
+      # most recent bucket is always a full one and any clipping lands on the
+      # oldest. A short final bucket at the recent end would be the one the client
+      # reads the trend from.
+      #
+      # Partitions the activities the outer window has already loaded rather than
+      # constructing a TrainingWindow per bucket. A window per bucket issued its
+      # own query over rows already in memory, which at the widest window and
+      # narrowest bucket meant over a hundred queries for one call.
+      def series_buckets(window, bucket_weeks)
         width = bucket_weeks * 7
-        buckets = []
+        ranges = []
         last_day = window.to
 
         while last_day >= window.from
           first_day = [ last_day - (width - 1), window.from ].max
-          buckets << TrainingWindow.between(first_day, last_day, zone: zone)
+          ranges << (first_day..last_day)
           last_day = first_day - 1
         end
 
-        buckets.reverse
+        by_date = window.activities.group_by { |activity| window.local_date(activity) }
+        ranges.reverse.map do |range|
+          {
+            from: range.first,
+            to: range.last,
+            days: range.count,
+            full_width: range.count == width,
+            activities: range.flat_map { |date| by_date.fetch(date, []) }
+          }
+        end
       end
 
-      # Races are excluded here — TrainingWindow#mean already scopes to training
-      # efforts — and reported as markers instead.
+      # Races are excluded from the series and reported as markers instead.
+      #
+      # Every metric carries the sample size behind it, not just the count of
+      # activities matching the filter. The two differ whenever the pipeline
+      # derived some metrics and not others: four matching runs of which one has
+      # grade-adjusted data is a well-sampled bucket for raw pace and an n-of-1
+      # for the adjusted figure, and a single `sufficient_sample` flag would
+      # certify both.
       def summarise(bucket, filter)
-        matching = bucket.training_only.select { |activity| filter[:predicate].call(activity) }
+        matching = bucket[:activities].reject(&:race?).select { |activity| filter[:predicate].call(activity) }
         count = matching.size
 
         row = {
-          from: bucket.from.to_s,
-          to: bucket.to.to_s,
+          from: bucket[:from].to_s,
+          to: bucket[:to].to_s,
+          days: bucket[:days],
+          # A clipped bucket spans fewer days than the rest, so its midpoint is
+          # closer to its neighbour than a full bucket's would be. Including it in
+          # a slope expressed "per bucket" would misstate the rate.
+          full_width: bucket[:full_width],
           activity_count: count,
-          # Below the trend threshold the averages are still reported, because a
-          # single run is a real data point, but the flag says not to read a
-          # trend through it.
+          # Matching activities only. Read the per-metric sample_size before
+          # trusting any individual figure below.
           sufficient_sample: count >= TrainingWindow::MIN_SAMPLE_FOR_TREND,
           total_distance_km: (matching.filter_map(&:distance_meters).sum / 1000.0).round(1),
-          elevation_gain_per_km: gain_per_km(matching)
+          elevation_gain_per_km: measured_gain_per_km(matching)
         }
 
         SERIES_METRICS.each do |column, precision|
-          row[column] = mean_with_sample(matching.map(&column), precision: precision)[:value]
+          row[column] = mean_with_sample(matching.map(&column), precision: precision)
         end
 
         row
       end
 
-      def gain_per_km(activities)
+      # Reported in the same {value, sample_size} shape as the other metrics, so
+      # the terrain trend is gated on its own coverage like the rest.
+      def measured_gain_per_km(activities)
         measured = activities.select { |a| a.elevation_gain_meters && a.distance_meters.to_f.positive? }
         distance_km = measured.sum(&:distance_meters) / 1000.0
-        return nil unless distance_km.positive?
+        return { value: nil, sample_size: 0 } unless distance_km.positive?
 
-        (measured.sum(&:elevation_gain_meters) / distance_km).round(1)
+        {
+          value: (measured.sum(&:elevation_gain_meters) / distance_km).round(1),
+          sample_size: measured.size
+        }
       end
 
-      # Least-squares slope across the buckets carrying a sample, expressed per
-      # bucket. A first-to-last difference would hand the entire trend to two
-      # buckets and ignore everything between them.
-      def slope_for(usable, column)
-        linear_slope(usable.filter_map { |row, index| [ index, row[column] ] if row[column] })
+      # Least-squares slope across the buckets whose sample for *this metric*
+      # clears the trend threshold, expressed per bucket. A first-to-last
+      # difference would hand the entire trend to two buckets and ignore
+      # everything between them.
+      #
+      # Indexed by position in the full series, so a bucket skipped for a thin
+      # sample leaves a gap in the axis rather than compressing it — the gap is
+      # real time, and re-indexing around it would overstate every trend.
+      def slope_for(series, column)
+        linear_slope(usable_points(series, column))
       end
 
-      def trend(bucket_weeks, usable, slopes)
+      def usable_points(series, column)
+        series.each_with_index.filter_map do |row, index|
+          stat = row[column]
+          next unless row[:full_width]
+          next if stat[:value].nil? || stat[:sample_size] < TrainingWindow::MIN_SAMPLE_FOR_TREND
+
+          [ index, stat[:value] ]
+        end
+      end
+
+      def trend(bucket_weeks, series, slopes)
         trend = {
-          basis: "Least-squares slope per #{bucket_weeks}-week bucket, across the " \
-                 "#{usable.size} #{'bucket'.pluralize(usable.size)} with at least " \
-                 "#{TrainingWindow::MIN_SAMPLE_FOR_TREND} matching activities. " \
-                 "A negative pace slope means the runner is getting faster.",
-          buckets_used: usable.size
+          basis: "Least-squares slope per #{bucket_weeks}-week bucket. Each metric is fitted only across " \
+                 "the full-width buckets whose own sample reaches " \
+                 "#{TrainingWindow::MIN_SAMPLE_FOR_TREND} activities carrying it, and buckets_used says how " \
+                 "many that was — coverage differs by metric when the pipeline derived some and not others. " \
+                 "The oldest bucket is excluded when the window clipped it short, because its midpoint sits " \
+                 "closer to its neighbour than a full bucket's would and it would understate the rate. " \
+                 "A negative pace slope means the runner is getting faster; a negative efficiency factor " \
+                 "slope means the opposite, since efficiency factor rises with fitness."
         }
 
         slopes.each do |column, slope|
-          trend[:"#{column}_change_per_bucket"] = slope&.round(ROUNDING.fetch(column))
+          trend[column] = {
+            change_per_bucket: slope&.round(ROUNDING.fetch(column)),
+            buckets_used: usable_points(series, column).size
+          }
         end
 
         trend
@@ -290,7 +333,7 @@ module AnalyticalTools
         end
       end
 
-      def notable_signals(window, series, filter, usable, slopes)
+      def notable_signals(window, series, filter, slopes)
         signals = []
 
         unless filter[:available]
@@ -311,7 +354,8 @@ module AnalyticalTools
                      "dropped, so the gaps in training stay visible."
         end
 
-        signals.concat(divergence_signals(usable, slopes))
+        signals.concat(coverage_signals(series))
+        signals.concat(divergence_signals(series, slopes))
 
         if window.races.any?
           count = window.races.size
@@ -322,20 +366,34 @@ module AnalyticalTools
         signals
       end
 
+      # Where a metric's own coverage falls short of the trend threshold in most
+      # buckets, the fitted slope rests on very little and the response says so
+      # rather than leaving the client to compare buckets_used across metrics.
+      def coverage_signals(series)
+        return [] if series.size < 2
+
+        TREND_METRICS.filter_map do |column|
+          used = usable_points(series, column).size
+          next if used >= 2 || series.none? { |row| row[column][:sample_size].positive? }
+
+          "#{column} is carried by too few well-sampled buckets (#{used}) to fit a trend, " \
+            "even though some buckets hold the metric. The pipeline derived it for only part of the corpus."
+        end
+      end
+
       # The finding that justifies carrying both series: adjusted pace flat while
       # raw pace improves means the routes got flatter.
-      def divergence_signals(usable, slopes)
-        return [] if usable.size < 2
-
+      def divergence_signals(series, slopes)
         signals = []
         raw = slopes[:average_pace_per_km]
         adjusted = slopes[:avg_grade_adjusted_pace_per_km]
         terrain = slopes[:elevation_gain_per_km]
+        buckets = usable_points(series, :avg_grade_adjusted_pace_per_km).size
 
         if adjusted && adjusted.abs >= NOTABLE_SLOPE
           direction = adjusted.negative? ? "faster" : "slower"
           signals << "Grade-adjusted pace is trending #{adjusted.abs.round(1)}s/km #{direction} per bucket " \
-                     "across #{usable.size} buckets."
+                     "across #{buckets} well-sampled buckets."
         end
 
         if raw && adjusted && (raw - adjusted).abs >= NOTABLE_SLOPE

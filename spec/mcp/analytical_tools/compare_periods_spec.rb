@@ -19,7 +19,7 @@ RSpec.describe AnalyticalTools::ComparePeriods do
     it "defaults to the last 28 days against the 28 before them" do
       expect(payload[:period_a][:period]).to include(days: 28, from: "2026-05-19", to: "2026-06-15")
       expect(payload[:period_b][:period]).to include(days: 28, from: "2026-04-21", to: "2026-05-18")
-      expect(payload[:comparability][:note]).to eq("Periods are adjacent.")
+      expect(payload[:comparability][:note]).to match(/Periods are adjacent\./)
     end
 
     it "accepts an explicit end date for either period" do
@@ -28,7 +28,7 @@ RSpec.describe AnalyticalTools::ComparePeriods do
 
       expect(result[:period_a][:period]).to include(from: "2026-03-25", to: "2026-03-31")
       expect(result[:period_b][:period]).to include(from: "2026-01-25", to: "2026-01-31")
-      expect(result[:comparability][:note]).to eq("Periods are disjoint.")
+      expect(result[:comparability]).to include(note: "Periods are disjoint.", includes_today: false)
     end
 
     it "accepts an offset in days as an alternative to a date" do
@@ -74,6 +74,23 @@ RSpec.describe AnalyticalTools::ComparePeriods do
     it "omits the current load state, which belongs to neither period" do
       expect(payload).not_to have_key(:training_context)
     end
+
+    # A period ending today is a part-day short of its nominal length, and that
+    # always leans the same way against a fully elapsed comparison.
+    it "says when a period ends today and is therefore a part-day short" do
+      expect(payload[:comparability][:includes_today]).to be(true)
+      expect(payload[:comparability][:note]).to match(/part-day short of its nominal length/)
+    end
+
+    # Two negative deltas can mean opposite things, so the block names both
+    # conventions rather than only the pace one.
+    it "explains the sign convention for every metric it reports" do
+      signs = payload[:deltas][:reading_the_signs]
+
+      expect(signs).to match(/negative pace delta means period_a was faster/)
+      expect(signs).to match(/negative efficiency factor delta means period_a was less efficient/)
+      expect(signs).to match(/negative decoupling delta means period_a drifted less/)
+    end
   end
 
   describe "deltas" do
@@ -96,7 +113,8 @@ RSpec.describe AnalyticalTools::ComparePeriods do
       end
 
       deltas = payload[:deltas]
-      expect(deltas.keys.first(3)).to eq([ :note, :volume_basis, :grade_adjusted_pace_change_seconds_per_km ])
+      expect(deltas.keys.first(4))
+        .to eq([ :note, :reading_the_signs, :volume_basis, :grade_adjusted_pace_change_seconds_per_km ])
       expect(deltas[:grade_adjusted_pace_change_seconds_per_km]).to eq(-2.0)
       expect(deltas[:pace_change_seconds_per_km]).to eq(-30.0)
     end

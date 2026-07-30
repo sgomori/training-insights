@@ -154,7 +154,11 @@ module MetricInterpretation
       direction: "lower_is_better",
       guidance: "Foster's monotony: mean daily load for a week divided by the standard deviation of daily " \
                 "load across its seven days, rest days included as zero. High values mean every day looked " \
-                "the same, which is the pattern associated with accumulating fatigue even at moderate volume.",
+                "the same, which is the pattern associated with accumulating fatigue even at moderate volume. " \
+                "The spread is a population standard deviation, treating the seven days as the whole " \
+                "population rather than a sample of one. That runs about 8% higher than the sample " \
+                "convention, so a figure quoted from software defaulting to n-1 will sit slightly below " \
+                "this one against the same bands.",
       bands: [
         band("varied", max: 1.5),
         band("moderately monotonous", min: 1.5, max: 2.0),
@@ -175,9 +179,12 @@ module MetricInterpretation
     weekly_ramp_rate_pct: Definition.new(
       unit: "percent per week",
       direction: "context_dependent",
-      guidance: "Mean week-over-week change in weekly training load. Conventional guidance treats sustained " \
-                "increases beyond 10% a week as an aggressive build; a single week above it during a planned " \
-                "step-up is a different fact from four in a row.",
+      guidance: "Compound weekly growth rate in weekly training load across the window. Conventional " \
+                "guidance treats sustained increases beyond 10% a week as an aggressive build; a single " \
+                "week above it during a planned step-up is a different fact from four in a row. This is a " \
+                "compound rate, not the mean of the week-over-week changes — the mean of ratios runs higher " \
+                "than the rate of growth whenever the weeks vary, and can report a double-digit build " \
+                "across a block whose net change is zero.",
       bands: [
         band("reducing", max: 0.0),
         band("conservative build", min: 0.0, max: 5.0),
@@ -250,19 +257,31 @@ module MetricInterpretation
   # still not mean what it appears to — cardiac drift on an interval session
   # being the standing example — and the client cannot know that unless the
   # server says so next to the value.
+  # `value` is always emitted, including as an explicit null. Only the
+  # descriptive keys are compacted away when they have nothing to say. The server
+  # instructions promise clients that "any metric may be null when the source
+  # data lacked what was needed to derive it" — a null is what that promises, and
+  # an absent key would leave a client unable to tell a missing measurement from
+  # a misremembered field name.
+  #
+  # `sample_size` stays compacted: the mean-based call sites always pass one,
+  # while a single-observation reading has no sample to report, and a null there
+  # would suggest a count that failed rather than one that does not apply.
   def self.describe(metric, value:, sample_size: nil, caveats: [])
     definition = DEFINITIONS.fetch(metric)
 
-    {
-      value: value,
-      sample_size: sample_size,
-      unit: definition.unit,
-      direction: definition.direction,
-      guidance: definition.guidance,
-      band: band_label_for(definition, value),
-      reference_bands: definition.bands.map(&:to_h).presence,
-      caveats: caveats.presence
-    }.compact
+    # value leads, so the measurement is the first thing a reader meets.
+    { value: value }.merge(
+      {
+        sample_size: sample_size,
+        unit: definition.unit,
+        direction: definition.direction,
+        guidance: definition.guidance,
+        band: band_label_for(definition, value),
+        reference_bands: definition.bands.map(&:to_h).presence,
+        caveats: caveats.presence
+      }.compact
+    )
   end
 
   # Which published band the value falls in. A factual classification against a

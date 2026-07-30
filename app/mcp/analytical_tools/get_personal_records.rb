@@ -20,9 +20,10 @@ module AnalyticalTools
       complete efforts, not best segments: a 5k record is the fastest activity
       whose own distance fell within tolerance of 5km, not the fastest 5km inside
       a longer run. Because a watch never measures the nominal distance, each
-      record reports the distance actually covered alongside an equivalent time
-      at the nominal distance, and race-linked efforts are named and preferred
-      when two efforts tie.
+      record reports the distance actually covered alongside its equivalent time at
+      the nominal distance, computed with Riegel's endurance model so that a short
+      effort inside the tolerance band is not credited as if pace held constant.
+      Race-linked efforts are named and preferred when two efforts tie.
     TEXT
 
     input_schema(
@@ -39,21 +40,22 @@ module AnalyticalTools
     # Squished rather than stripped: this one is prose on the wire, not a tool
     # description, and a hard-wrapped string reads badly inside a JSON payload.
     BASIS = <<~TEXT.squish
-      Best complete efforts. Each record is the activity with the fastest average
-      pace whose own distance fell within the tolerance band for that distance,
-      ranked on pace rather than elapsed time so that a 5.4km effort is not
-      penalised against a 4.6km one. equivalent_time_at_nominal_distance restates
-      that pace over the nominal distance, and is an extrapolation rather than a
-      time the runner actually ran. These are not segment records: the fastest 5km
-      inside a longer run is not considered, because no tool on this server queries
-      into an activity's streams.
+      Best complete efforts. Each record is the effort whose own distance fell
+      within the tolerance band for that distance and whose equivalent time at the
+      nominal distance is fastest. Ranking on elapsed time would hand every record
+      to whichever effort was shortest, and ranking on raw pace would still favour
+      the short edge of the band, because a shorter effort should be faster.
+      equivalent_time_at_nominal_distance therefore uses Riegel's endurance model
+      with the standard exponent of 1.06, which accounts for that: it is an
+      extrapolation, not a time the runner actually ran. These are not segment
+      records: the fastest 5km inside a longer run is not considered, because no
+      tool on this server queries into an activity's streams.
     TEXT
 
-    # Fastest pace wins. A race-linked effort breaks a tie, because a race result
-    # is the more meaningful number of the two; in PostgreSQL false sorts before
-    # true, so a non-null race_id lands first. The date is the final tiebreak, to
-    # keep the response stable between identical calls.
-    RANKING = "average_pace_per_km ASC, (race_id IS NULL) ASC, started_at ASC".freeze
+    # Riegel's exponent. T2 = T1 * (D2 / D1) ** 1.06 is the standard endurance
+    # model for predicting one distance from another, and 1.06 is the value fitted
+    # across a wide range of race results.
+    RIEGEL_EXPONENT = 1.06
 
     class << self
       def call(distances: nil, server_context: nil)
@@ -90,10 +92,17 @@ module AnalyticalTools
         DistanceBucket.standard.select { |bucket| requested.include?(bucket.key) }
       end
 
+      # Ranked in Ruby on the Riegel-equivalent time, which SQL cannot express
+      # without embedding the model in a query. The candidate set is bounded by the
+      # tolerance band, so this loads a handful of rows per distance.
       def record_for(bucket, zone)
         attempts = within_tolerance(bucket)
-        paced = attempts.where.not(average_pace_per_km: nil)
-        best = paced.reorder(Arel.sql(RANKING)).includes(:race).first
+        paced = attempts.where.not(average_pace_per_km: nil).includes(:race).to_a
+        best = paced.min_by do |activity|
+          # A race-linked effort takes a tie, because a race result is the more
+          # meaningful number of the two. Date last, so identical calls agree.
+          [ equivalent_time(activity, bucket), activity.race_id ? 0 : 1, activity.started_at ]
+        end
         return nil if best.nil?
 
         {
@@ -101,8 +110,8 @@ module AnalyticalTools
           label: bucket.label,
           nominal_distance_km: bucket.nominal_km,
           tolerance_km: [ bucket.min_km, bucket.max_km ],
-          attempts_considered: paced.count,
-          attempts_without_pace: attempts.count - paced.count,
+          attempts_considered: paced.size,
+          attempts_without_pace: attempts.count - paced.size,
           best: best_effort(best, bucket, zone)
         }
       end
@@ -111,6 +120,16 @@ module AnalyticalTools
         scope = Activity.where(distance_meters: (bucket.min_km * 1000)..)
         scope = scope.where(distance_meters: ..(bucket.max_km * 1000)) if bucket.max_km
         scope
+      end
+
+      # T2 = T1 * (D2 / D1) ** 1.06, where T1 is this effort's time over its own
+      # distance and D2 is the nominal one. Collapses to the effort's own time when
+      # it landed exactly on the nominal distance.
+      def equivalent_time(activity, bucket)
+        actual_km = activity.distance_meters / 1000.0
+        own_time = activity.average_pace_per_km * actual_km
+
+        own_time * ((bucket.nominal_km / actual_km)**RIEGEL_EXPONENT)
       end
 
       def best_effort(activity, bucket, zone)
@@ -122,7 +141,8 @@ module AnalyticalTools
           duration_seconds: activity.duration_seconds&.round,
           pace_per_km: pace.round(1),
           grade_adjusted_pace_per_km: activity.avg_grade_adjusted_pace_per_km&.round(1),
-          equivalent_time_at_nominal_distance: (pace * bucket.nominal_km).round,
+          equivalent_time_at_nominal_distance: equivalent_time(activity, bucket).round,
+          equivalent_time_model: "Riegel, exponent #{RIEGEL_EXPONENT}",
           elevation_gain_meters: activity.elevation_gain_meters&.round,
           average_heart_rate: activity.average_heart_rate,
           race_name: activity.race&.name,
@@ -148,7 +168,9 @@ module AnalyticalTools
       # the week and month boundaries land in the runner's timezone the same way
       # every other tool's do.
       def notable_efforts(zone)
-        by_date = Activity.pluck(:started_at, :distance_meters).filter_map do |started_at, distance|
+        # Ordered so the max_by tie-break below is stable between identical calls
+        # rather than resting on whatever order Postgres happened to return.
+        by_date = Activity.order(:started_at).pluck(:started_at, :distance_meters).filter_map do |started_at, distance|
           [ started_at.in_time_zone(zone).to_date, distance ] if distance
         end
 
@@ -162,7 +184,8 @@ module AnalyticalTools
       end
 
       def longest_run(zone)
-        activity = Activity.where.not(distance_meters: nil).reorder(distance_meters: :desc).includes(:race).first
+        activity = Activity.where.not(distance_meters: nil)
+          .reorder(distance_meters: :desc, started_at: :asc).includes(:race).first
         return nil if activity.nil?
 
         {
@@ -179,7 +202,7 @@ module AnalyticalTools
         return nil if by_date.empty?
 
         totals = by_date.group_by { |date, _distance| date.public_send(boundary) }
-        start, activities = totals.max_by { |_start, rows| rows.sum { |_date, distance| distance } }
+        start, activities = totals.max_by { |start, rows| [ rows.sum { |_date, distance| distance }, -start.to_time.to_i ] }
 
         {
           starting: start.to_s,
@@ -190,7 +213,8 @@ module AnalyticalTools
       end
 
       def highest_load_activity(zone)
-        activity = Activity.where.not(tss_score: nil).reorder(tss_score: :desc).includes(:race).first
+        activity = Activity.where.not(tss_score: nil)
+          .reorder(tss_score: :desc, started_at: :asc).includes(:race).first
         return nil if activity.nil?
 
         {
@@ -208,7 +232,7 @@ module AnalyticalTools
       def best_efficiency_factor(zone)
         activity = Activity.training_only
           .where.not(grade_adjusted_efficiency_factor: nil)
-          .reorder(grade_adjusted_efficiency_factor: :desc)
+          .reorder(grade_adjusted_efficiency_factor: :desc, started_at: :asc)
           .first
         return nil if activity.nil?
 

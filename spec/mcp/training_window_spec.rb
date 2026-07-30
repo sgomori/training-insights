@@ -5,7 +5,7 @@ RSpec.describe TrainingWindow do
   let(:zone) { ActiveSupport::TimeZone["America/Toronto"] }
 
   around do |example|
-    travel_to(Time.utc(2026, 6, 15, 12, 0, 0)) { example.run }
+    travel_to(example.metadata.fetch(:now, Time.utc(2026, 6, 15, 12, 0, 0))) { example.run }
   end
 
   describe "resolving the range" do
@@ -135,6 +135,30 @@ RSpec.describe TrainingWindow do
       expect(buckets[1].longest_run_km).to be_nil
     end
 
+    describe "whether a week can be compared with its neighbours" do
+      it "separates covering all seven days from the week having finished" do
+        buckets = window.weekly_buckets
+
+        # 2026-06-15 is a Monday, so the final bucket holds one day of a week that
+        # has barely started, and the first holds six days of one that is over.
+        expect(buckets.map(&:complete?)).to eq([ false, true, false ])
+        expect(buckets.map(&:in_progress?)).to eq([ false, false, true ])
+        expect(buckets.map(&:comparable?)).to eq([ false, true, false ])
+      end
+
+      # On the last day of a week every one of its days is inside a window ending
+      # today, so the whole-week test passes while the day itself is not over.
+      it "does not call the current week comparable on the last day of that week",
+        now: Time.utc(2026, 6, 14, 16, 0, 0) do
+        bucket = described_class.ending(Date.new(2026, 6, 14), days: 7, zone: zone).weekly_buckets.last
+
+        expect(bucket.week_start).to eq(Date.new(2026, 6, 8))
+        expect(bucket.complete?).to be(true)
+        expect(bucket.in_progress?).to be(true)
+        expect(bucket.comparable?).to be(false)
+      end
+    end
+
     # The one place an absent value is legitimately zero: a rest day carries no
     # load, which is a different fact from an unscored activity.
     describe "daily load" do
@@ -144,6 +168,24 @@ RSpec.describe TrainingWindow do
 
         bucket = window.weekly_buckets[1]
         expect(bucket.daily_tss).to eq([ 70.0, 0.0, 0.0, 30.0, 0.0, 0.0, 0.0 ])
+      end
+
+      # The other half of that distinction. A day the runner trained on but whose
+      # load could not be derived is not a rest day, and coercing it to 0.0 would
+      # make the two indistinguishable — which drags the mean down and the spread
+      # up, moving Foster's monotony by a whole band.
+      it "reports a trained but unscored day as nil rather than as a rest day" do
+        create(:activity, started_at: zone.parse("2026-06-08 10:00"), tss_score: 70.0)
+        create(:activity, :without_computed_metrics, started_at: zone.parse("2026-06-13 10:00"))
+
+        expect(window.weekly_buckets[1].daily_tss).to eq([ 70.0, 0.0, 0.0, 0.0, 0.0, nil, 0.0 ])
+      end
+
+      it "keeps a day whose other activity was scored" do
+        create(:activity, started_at: zone.parse("2026-06-08 07:00"), tss_score: 70.0)
+        create(:activity, :without_computed_metrics, started_at: zone.parse("2026-06-08 18:00"))
+
+        expect(window.weekly_buckets[1].daily_tss.first).to eq(70.0)
       end
 
       it "sums two runs on the same day into one day's load" do
@@ -159,6 +201,22 @@ RSpec.describe TrainingWindow do
     end
   end
 
+  describe "duration-weighted zones" do
+    subject(:window) { described_class.ending(Date.new(2026, 6, 15), days: 14, zone: zone) }
+
+    # suggest_next_run derives its harder-than-easy share as 100 minus the easy
+    # share, so this invariant is load-bearing beyond the block that states it.
+    it "keeps the aggregated percentages summing to 100 across unequal durations" do
+      create(:activity, started_at: zone.parse("2026-06-10 09:00"), duration_seconds: 1_800,
+        hr_zone_distribution: { "zone_1" => 10.0, "zone_2" => 70.0, "zone_4" => 20.0 })
+      create(:activity, started_at: zone.parse("2026-06-11 09:00"), duration_seconds: 9_000,
+        hr_zone_distribution: { "zone_2" => 60.0, "zone_3" => 30.0, "zone_5" => 10.0 })
+
+      zones = window.zones(:hr_zone_distribution)[:zones]
+      expect(zones.values.sum).to be_within(0.2).of(100.0)
+    end
+  end
+
   describe "an empty window" do
     subject(:window) { described_class.ending(Date.new(2026, 6, 15), days: 28, zone: zone) }
 
@@ -168,7 +226,8 @@ RSpec.describe TrainingWindow do
       expect(window.load).to include(total_tss: 0.0, average_daily_tss: 0.0)
       expect(window.gain_per_km).to be_nil
       expect(window.terrain_cost_seconds_per_km).to be_nil
-      expect(window.zones(:hr_zone_distribution)).to eq(zones: nil, activities_contributing: 0)
+      expect(window.zones(:hr_zone_distribution))
+        .to eq(zones: nil, activities_contributing: 0, hours_contributing: 0.0)
     end
   end
 end

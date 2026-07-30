@@ -46,11 +46,11 @@ RSpec.describe AnalyticalTools::GetPaceProgression do
       bucket_of(5, average_pace_per_km: 380.0, avg_grade_adjusted_pace_per_km: 370.0, efficiency_factor: 1.30)
 
       series = payload[:series]
-      expect(series.last).to include(
-        activity_count: 3, average_pace_per_km: 340.0,
-        avg_grade_adjusted_pace_per_km: 335.0, efficiency_factor: 1.4, sufficient_sample: true
-      )
-      expect(series[1][:average_pace_per_km]).to eq(380.0)
+      expect(series.last).to include(activity_count: 3, sufficient_sample: true)
+      expect(series.last[:average_pace_per_km]).to eq(value: 340.0, sample_size: 3)
+      expect(series.last[:avg_grade_adjusted_pace_per_km]).to eq(value: 335.0, sample_size: 3)
+      expect(series.last[:efficiency_factor]).to eq(value: 1.4, sample_size: 3)
+      expect(series[1][:average_pace_per_km][:value]).to eq(380.0)
     end
 
     it "reports a thin bucket rather than dropping it, so a gap in training stays visible" do
@@ -60,14 +60,15 @@ RSpec.describe AnalyticalTools::GetPaceProgression do
       thin = payload[:series][1]
       expect(thin[:activity_count]).to eq(1)
       expect(thin[:sufficient_sample]).to be(false)
-      expect(thin[:average_pace_per_km]).to eq(360.0)
+      expect(thin[:average_pace_per_km]).to eq(value: 360.0, sample_size: 1)
       expect(payload[:notable]).to include(a_string_matching(/reported rather than dropped/))
     end
 
     it "reports an empty bucket as empty rather than omitting the period" do
       bucket_of(0)
 
-      expect(payload[:series].first).to include(activity_count: 0, average_pace_per_km: nil)
+      expect(payload[:series].first).to include(activity_count: 0)
+      expect(payload[:series].first[:average_pace_per_km]).to eq(value: nil, sample_size: 0)
     end
 
     it "clamps the window and bucket width rather than rejecting them" do
@@ -86,8 +87,8 @@ RSpec.describe AnalyticalTools::GetPaceProgression do
       bucket_of(5, avg_grade_adjusted_pace_per_km: 370.0)
       bucket_of(0, avg_grade_adjusted_pace_per_km: 360.0)
 
-      expect(payload[:trend][:avg_grade_adjusted_pace_per_km_change_per_bucket]).to eq(-10.0)
-      expect(payload[:trend][:buckets_used]).to eq(3)
+      expect(payload[:trend][:avg_grade_adjusted_pace_per_km])
+        .to eq(change_per_bucket: -10.0, buckets_used: 3)
       expect(payload[:notable]).to include(a_string_matching(/10\.0s\/km faster per bucket/))
     end
 
@@ -97,7 +98,7 @@ RSpec.describe AnalyticalTools::GetPaceProgression do
       # gives -7.0, because the interior buckets carry weight too.
       result = lambda do
         described_class.call(days: 112, bucket_weeks: 4)
-          .structured_content.dig(:trend, :avg_grade_adjusted_pace_per_km_change_per_bucket)
+          .structured_content.dig(:trend, :avg_grade_adjusted_pace_per_km, :change_per_bucket)
       end
 
       bucket_of(13, avg_grade_adjusted_pace_per_km: 380.0)
@@ -116,14 +117,14 @@ RSpec.describe AnalyticalTools::GetPaceProgression do
       bucket_of(0, count: 3, avg_grade_adjusted_pace_per_km: 360.0)
 
       # Buckets 0 and 2 are usable, 20s apart across two bucket-widths.
-      expect(payload[:trend][:avg_grade_adjusted_pace_per_km_change_per_bucket]).to eq(-10.0)
+      expect(payload[:trend].dig(:avg_grade_adjusted_pace_per_km, :change_per_bucket)).to eq(-10.0)
     end
 
     it "reports no trend when only one bucket has a sample" do
       bucket_of(0)
 
-      expect(payload[:trend][:avg_grade_adjusted_pace_per_km_change_per_bucket]).to be_nil
-      expect(payload[:trend][:buckets_used]).to eq(1)
+      expect(payload[:trend][:avg_grade_adjusted_pace_per_km])
+        .to eq(change_per_bucket: nil, buckets_used: 1)
     end
 
     # The reason both series exist: raw pace improving while the grade-adjusted
@@ -255,7 +256,7 @@ RSpec.describe AnalyticalTools::GetPaceProgression do
     it "excludes the race from the series" do
       recent = payload[:series].last
       expect(recent[:activity_count]).to eq(3)
-      expect(recent[:average_pace_per_km]).to eq(360.0)
+      expect(recent[:average_pace_per_km][:value]).to eq(360.0)
     end
 
     it "reports the race separately with its result" do
@@ -296,7 +297,7 @@ RSpec.describe AnalyticalTools::GetPaceProgression do
     it "handles an empty database without raising" do
       expect { payload }.not_to raise_error
       expect(payload[:race_markers]).to eq([])
-      expect(payload[:trend][:buckets_used]).to eq(0)
+      expect(payload[:trend][:average_pace_per_km][:buckets_used]).to eq(0)
     end
   end
 end

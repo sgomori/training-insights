@@ -82,13 +82,19 @@ module AnalyticalTools
 
         a = TrainingWindow.ending(a_end, days: a_days, zone: zone)
         b = TrainingWindow.ending(b_end, days: b_days, zone: zone)
+
+        # Computed before the response is assembled rather than inside it. The
+        # suppression map is populated as a side effect of building the deltas and
+        # read again by the signals, and relying on hash-literal evaluation order
+        # for that would break silently if the keys were ever reordered.
         suppressed = {}
+        deltas = deltas(a, b, suppressed)
 
         shaped(
           period_a: describe(a),
           period_b: describe(b),
-          deltas: deltas(a, b, suppressed),
-          comparability: comparability(a, b),
+          deltas: deltas,
+          comparability: comparability(a, b, zone),
           notable: notable_signals(a, b, suppressed)
         )
       end
@@ -128,8 +134,17 @@ module AnalyticalTools
       # terrain, not of fitness.
       def deltas(a, b, suppressed)
         {
-          note: "period_a relative to period_b. A negative pace delta means period_a was faster. " \
-                "Prefer the grade-adjusted pace delta: it is the one that isolates fitness from terrain.",
+          note: "period_a relative to period_b. Prefer the grade-adjusted pace delta: it is the one that " \
+                "isolates fitness from terrain.",
+          # The sign conventions differ by metric and a single pace-flavoured note
+          # would leave half of this block ambiguous: -8s/km and -0.05 efficiency
+          # factor are both negative, and one is an improvement while the other is
+          # not.
+          reading_the_signs: "A negative pace delta means period_a was faster, because pace is " \
+                             "seconds per kilometre. A negative efficiency factor delta means period_a was " \
+                             "less efficient, because efficiency factor rises with fitness. A negative " \
+                             "decoupling delta means period_a drifted less, which is better. Volume, load " \
+                             "and count deltas are positive when period_a was larger.",
           volume_basis: volume_basis(a, b),
           grade_adjusted_pace_change_seconds_per_km:
             mean_delta(a, b, :avg_grade_adjusted_pace_per_km, suppressed, precision: 1),
@@ -195,17 +210,27 @@ module AnalyticalTools
         (now[:value] - before[:value]).round(precision)
       end
 
-      def comparability(a, b)
+      def comparability(a, b, zone)
         overlap = overlap_days(a, b)
 
         {
           equal_length: a.days == b.days,
           overlap_days: overlap,
+          # A window ending today is one part-day short of its nominal length,
+          # which always leans the same way against a fully elapsed comparison.
+          includes_today: [ a.to, b.to ].include?(zone.today),
           # Both periods exclude races from their aerobic averages, so the
           # comparison is training-to-training even when one side contains a race.
           race_efforts: { period_a: a.races.size, period_b: b.races.size },
-          note: comparability_note(a, b, overlap)
+          note: [ comparability_note(a, b, overlap), today_note(a, b, zone) ].compact.join(" ")
         }
+      end
+
+      def today_note(a, b, zone)
+        return nil unless [ a.to, b.to ].include?(zone.today)
+
+        "One period ends today, so it is a part-day short of its nominal length. Volume and load on that " \
+          "side are understated by however much of the day is left."
       end
 
       def overlap_days(a, b)

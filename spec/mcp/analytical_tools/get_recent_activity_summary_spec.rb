@@ -320,7 +320,7 @@ RSpec.describe AnalyticalTools::GetRecentActivitySummary do
       create(:activity, :without_computed_metrics, started_at: 2.days.ago)
 
       expect(payload[:intensity_distribution][:hr_zones_pct]).to eq(
-        zones: nil, activities_contributing: 0
+        zones: nil, activities_contributing: 0, hours_contributing: 0.0
       )
     end
   end
