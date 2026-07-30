@@ -147,6 +147,43 @@ module MetricInterpretation
       guidance: "Heart-rate-derived training stress for the activity. Duration and intensity weighted; " \
                 "sums meaningfully across activities.",
       bands: []
+    ),
+
+    training_monotony: Definition.new(
+      unit: "ratio",
+      direction: "lower_is_better",
+      guidance: "Foster's monotony: mean daily load for a week divided by the standard deviation of daily " \
+                "load across its seven days, rest days included as zero. High values mean every day looked " \
+                "the same, which is the pattern associated with accumulating fatigue even at moderate volume.",
+      bands: [
+        band("varied", max: 1.5),
+        band("moderately monotonous", min: 1.5, max: 2.0),
+        band("monotonous", min: 2.0)
+      ]
+    ),
+
+    training_strain: Definition.new(
+      unit: "TSS x monotony",
+      direction: "context_dependent",
+      guidance: "Weekly load multiplied by that week's monotony, so a monotonous week counts for more than " \
+                "its volume alone. Read it as a relative figure across this runner's own weeks. The " \
+                "published strain thresholds come from session-RPE load units and do not transfer to a " \
+                "heart-rate-derived TSS, so no reference bands are given.",
+      bands: []
+    ),
+
+    weekly_ramp_rate_pct: Definition.new(
+      unit: "percent per week",
+      direction: "context_dependent",
+      guidance: "Mean week-over-week change in weekly training load. Conventional guidance treats sustained " \
+                "increases beyond 10% a week as an aggressive build; a single week above it during a planned " \
+                "step-up is a different fact from four in a row.",
+      bands: [
+        band("reducing", max: 0.0),
+        band("conservative build", min: 0.0, max: 5.0),
+        band("moderate build", min: 5.0, max: 10.0),
+        band("aggressive build", min: 10.0)
+      ]
     )
   }.freeze
 

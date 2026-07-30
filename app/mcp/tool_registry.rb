@@ -4,7 +4,9 @@
 # so adding a tool class is only half of adding a tool.
 module ToolRegistry
   TOOLS = [
-    AnalyticalTools::GetRecentActivitySummary
+    AnalyticalTools::GetRecentActivitySummary,
+    AnalyticalTools::GetTrainingLoad,
+    AnalyticalTools::ComparePeriods
   ].freeze
 
   SERVER_NAME = "training-insights"
