@@ -62,6 +62,13 @@ module ToolRegistry
     No route or GPS data exists anywhere in this server, and no tool reads into
     an activity's raw streams. Anything phrased as a best segment within a run —
     a fastest 5k inside a longer effort, for instance — cannot be answered.
+
+    Report in prose, in the third person — this is one runner's history, and the
+    reader is usually not that runner. Prefer the reading a band label already
+    carries over the figure behind it: "moderate drift" lands where "7.4%" does
+    not. Quote a number only where it carries the point, which in most answers
+    means two or three of them rather than a table. Where a figure is missing or
+    a delta was suppressed, say so in a clause and move on.
   TEXT
 
   def self.tools
