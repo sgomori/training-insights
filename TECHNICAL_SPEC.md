@@ -90,12 +90,14 @@ Content-Type: application/json
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "source": "garmin_fit",
   "file": "morning_run.fit",
   "processed_at": "2024-03-15T09:23:41Z",
   "activity": {
     "started_at": "2024-03-15T07:00:00Z",
+    "started_at_local": "2024-03-15T03:00:00",
+    "utc_offset_seconds": -14400,
     "type": "running",
     "distance_meters": 15240,
     "duration_seconds": 4823,

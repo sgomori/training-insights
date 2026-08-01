@@ -55,7 +55,7 @@ RSpec.describe "POST /webhooks/activity" do
       expect(activity).to have_attributes(
         source: "garmin_fit",
         source_file: "morning_run.fit",
-        schema_version: "1.0",
+        schema_version: "1.1",
         activity_type: "running",
         distance_meters: 3156.5,
         average_heart_rate: 130,
@@ -235,6 +235,40 @@ RSpec.describe "POST /webhooks/activity" do
       payload["source"] = "other_pipeline"
 
       expect { post_payload(payload) }.to change(Activity, :count).by(1)
+    end
+  end
+
+  # The fixture carries 1.1, the version the pipeline emits today. 1.0 differs
+  # only in lacking the two local-time fields, so both are accepted.
+  describe "schema versions" do
+    it "accepts 1.0" do
+      payload["schema_version"] = "1.0"
+      payload["activity"].delete("started_at_local")
+      payload["activity"].delete("utc_offset_seconds")
+
+      expect { post_payload(payload) }.to change(Activity, :count).by(1)
+
+      expect(response).to have_http_status(:ok)
+      expect(Activity.sole.schema_version).to eq("1.0")
+    end
+
+    # 1.1's local-time fields have nowhere to go yet. Discarding them keeps
+    # ingestion working across the pipeline deploy; honouring them would mean a
+    # migration and a change to how every aggregating tool bounds its days.
+    it "accepts the 1.1 local-time fields without storing them" do
+      post_payload(payload)
+
+      expect(response).to have_http_status(:ok)
+      expect(Activity.sole.started_at).to eq(Time.iso8601("2026-01-15T07:00:00+00:00"))
+      expect(Activity.column_names).not_to include("started_at_local", "utc_offset_seconds")
+    end
+
+    it "rejects a major version bump" do
+      payload["schema_version"] = "2.0"
+
+      expect { post_payload(payload) }.not_to change(Activity, :count)
+
+      expect(response).to have_http_status(:unprocessable_content)
     end
   end
 

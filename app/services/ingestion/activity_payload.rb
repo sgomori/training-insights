@@ -5,7 +5,14 @@ module Ingestion
   # nulls, so absence is valid input for anything optional. Only the envelope
   # and the two non-nullable activity fields are required.
   class ActivityPayload
-    SUPPORTED_SCHEMA_VERSIONS = %w[1.0].freeze
+    # Listed explicitly rather than matched on the major version. An unknown
+    # version is rejected outright so a shape change cannot be half-parsed into
+    # a row that looks plausible; adding one here means someone read the diff.
+    #
+    # 1.1 adds activity.started_at_local and activity.utc_offset_seconds. Both
+    # are accepted and discarded — the schema has nowhere to put them, and every
+    # calendar boundary still derives from started_at in the runner's timezone.
+    SUPPORTED_SCHEMA_VERSIONS = %w[1.0 1.1].freeze
 
     # Payload key => Activity column. `training_stress_score` is the device's
     # own TSS and is deliberately kept apart from the pipeline's computed
