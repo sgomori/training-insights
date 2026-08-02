@@ -16,7 +16,7 @@ The MCP server is the primary architectural artifact. The Rails application hous
 
 - An authenticated webhook endpoint that receives structured activity data from the data pipeline
 - A normalized PostgreSQL schema storing activities, computed metrics, and time-series streams
-- The MCP server, exposing analytical tools over HTTP/SSE transport
+- The MCP server, exposing analytical tools over Streamable HTTP transport
 - A web frontend that consumes the MCP server for its AI-powered display
 - Pre-generated content cached and regenerated on new activity ingestion
 

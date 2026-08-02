@@ -1,0 +1,53 @@
+<% content_for :title, "Training Insights" %>
+
+<section>
+  <h1 class="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+    <%= @runner&.name || "A runner" %>'s training data, as analytical tools
+  </h1>
+
+  <div class="mt-6 space-y-4 text-stone-600 dark:text-stone-300">
+    <p>
+      Every run <%= @runner&.name || "the runner" %> records is parsed from its raw Garmin file, reduced to the
+      metrics that describe an endurance athlete's training, and exposed through the
+      Model Context Protocol. Any MCP-compatible AI client can connect and ask about it.
+    </p>
+
+    <p>
+      The tools return shaped aggregations rather than raw data — volume and load over a
+      period, intensity distribution, pace progression against grade, race readiness — and
+      stop short of drawing conclusions. Interpretation is left to whichever client is asking.
+    </p>
+  </div>
+
+  <% if @next_race %>
+    <p class="mt-8 border-l-2 border-stone-300 pl-4 text-stone-600 dark:border-stone-700 dark:text-stone-300">
+      Next up:
+      <span class="font-medium text-stone-900 dark:text-stone-100"><%= @next_race.name %></span>
+      on <%= l @next_race.race_date, format: :long %><%
+        %><% if (days = @next_race.days_until) && days.positive? %>, <%= pluralize(days, "day") %> away<% end %>.
+    </p>
+  <% end %>
+</section>
+
+<%# The pre-generated content block and the chat surface both land here. %>
+
+<section class="mt-16">
+  <h2 class="text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+    Connect your own client
+  </h2>
+
+  <div class="mt-4 space-y-4 text-stone-600 dark:text-stone-300">
+    <p>
+      The server speaks Streamable HTTP and authenticates with a bearer token. Point any
+      MCP client at the endpoint below and it will discover the available tools on connect.
+    </p>
+
+    <pre class="overflow-x-auto rounded-lg bg-stone-100 p-4 text-sm text-stone-800 dark:bg-stone-900 dark:text-stone-200"><code><%= "#{request.base_url}/mcp" %></code></pre>
+
+    <p>
+      Keys are issued on request and are read-only — a client can query the training
+      history and nothing else. Running your own instance needs no key from anyone:
+      the project is self-hostable end to end, against your own Garmin exports.
+    </p>
+  </div>
+</section>
