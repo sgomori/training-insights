@@ -9,6 +9,12 @@ bundle install
 bundle exec rails assets:precompile
 bundle exec rails assets:clean
 
-# Loads the Solid Cache, Queue, and Cable schemas alongside the app's own on
-# first deploy, then applies pending migrations on subsequent ones.
+# Creates the database and loads db/schema.rb on first deploy, then applies
+# pending migrations on subsequent ones.
 bundle exec rails db:prepare
+
+# db:prepare does not reach the Solid schemas: cache, queue and cable share the
+# primary's database, which already exists by the time they are considered, so
+# they are skipped as prepared. Without this the queue tables never appear and
+# the Solid Queue supervisor takes Puma down at boot.
+bundle exec rails db:load_solid_schemas
