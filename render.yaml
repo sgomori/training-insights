@@ -38,7 +38,7 @@ services:
       # Render serves the onrender.com hostname from the first deploy and the
       # custom domain only once DNS resolves, so both are listed until cutover.
       - key: MCP_ALLOWED_HOSTS
-        value: training.stevegomori.ca,training-insights.onrender.com
+        value: training.stevegomori.ca,training-insights-ynpc.onrender.com
       - key: MCP_SERVER_URL
         value: https://training.stevegomori.ca/mcp
 
