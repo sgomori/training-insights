@@ -30,14 +30,6 @@ All work happens on feature branches. Main branch history is maintained via squa
 
 **Squash commits:** When instructed to squash a branch, review the branch commits, synthesize what collectively changed, and write one clean commit message following the style guidelines below. Execute via `git rebase -i` or `git reset` + recommit.
 
-**Setting commit dates when squashing:** Both author date and committer date should be set explicitly when squashing. The date to use will be specified in the squash instruction.
-
-```bash
-# Set author date and committer date together
-git commit --amend --date="YYYY-MM-DD HH:MM:SS" --no-edit
-GIT_COMMITTER_DATE="YYYY-MM-DD HH:MM:SS" git commit --amend --no-edit
-```
-
 ## Commit conventions
 
 Commit messages are written in Rails community style:

@@ -1,6 +1,6 @@
 ---
 name: squash
-description: Squash a feature branch into one clean commit with explicit author and committer dates, following the project's commit conventions. Use when a branch is ready to merge into main.
+description: Squash a feature branch into one clean commit following the project's commit conventions. Use when a branch is ready to merge into main.
 ---
 
 # Squash a branch
@@ -43,21 +43,12 @@ git commit -m "Subject line here"
 
 `git rebase -i` works equally well if you prefer to edit interactively.
 
-## 4. Set both dates
-
-**Both the author date and the committer date must be set explicitly**, to the date given in the squash instruction. Setting only one leaves the other at the current wall-clock time, which is the mistake this step exists to prevent.
-
-```bash
-git commit --amend --date="YYYY-MM-DD HH:MM:SS" --no-edit
-GIT_COMMITTER_DATE="YYYY-MM-DD HH:MM:SS" git commit --amend --no-edit
-```
-
-## 5. Verify before merging
+## 4. Verify before merging
 
 ```bash
 git log -1 --pretty=fuller
 ```
 
-Confirm **AuthorDate and CommitDate both show the intended value**, the subject reads well in `git log --oneline`, and no trailer snuck in. Then merge to `main`.
+Confirm the subject reads well in `git log --oneline` and that no trailer snuck in. Then merge to `main`.
 
 Ask before pushing — publishing is a separate decision from committing.

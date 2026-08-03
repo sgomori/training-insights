@@ -39,4 +39,59 @@
 #   distance_meters: 21097
 #   status: cancelled
 
-[]
+- name: Royal Victoria Marathon
+  race_date: 2026-10-11
+  distance_meters: 42195
+  target_time_seconds: 13800
+
+- name: Manitoba Half Marathon
+  race_date: 2026-06-21
+  distance_meters: 21097
+
+- name: Oak Bay Half
+  race_date: 2026-05-24
+  distance_meters: 21097
+
+- name: TC10K
+  race_date: 2026-04-26
+  distance_meters: 10000
+
+- name: Vancouver First Half Marathon
+  race_date: 2026-02-08
+  distance_meters: 21097
+
+- name: Royal Victoria Marathon
+  race_date: 2025-10-12
+  distance_meters: 42195
+
+- name: Oak Bay 10K
+  race_date: 2025-05-25
+  distance_meters: 10000
+
+- name: BMO Vancouver Half Marathon
+  race_date: 2025-05-04
+  distance_meters: 21097
+
+- name: TC10K
+  race_date: 2025-04-27
+  distance_meters: 10000
+
+- name: Royal Victoria Marathon
+  race_date: 2024-10-13
+  distance_meters: 42195
+
+- name: Oak Bay Half
+  race_date: 2024-05-26
+  distance_meters: 21097
+
+- name: BMO Vancouver Half Marathon
+  race_date: 2024-05-05
+  distance_meters: 21097
+
+- name: TC10K
+  race_date: 2024-04-28
+  distance_meters: 10000
+
+- name: Royal Victoria Marathon 5K
+  race_date: 2023-10-07
+  distance_meters: 5000
