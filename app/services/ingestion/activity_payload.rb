@@ -50,6 +50,8 @@ module Ingestion
       average_heart_rate max_heart_rate average_cadence average_pace_per_km
     ].freeze
 
+    LAP_COLUMNS = LAP_ATTRIBUTES.map(&:to_sym).freeze
+
     attr_reader :errors
 
     def initialize(raw)
@@ -90,11 +92,20 @@ module Ingestion
       attrs
     end
 
+    # Every lap carries the full column set, absent values filled with nil.
+    #
+    # The sender omits null fields, so laps within one activity disagree about
+    # which keys exist whenever a sensor drops out mid-run — a lap with no
+    # cadence simply has no cadence key. `insert_all!` demands a uniform key set
+    # and raises ArgumentError otherwise, which is not an error the ingestion
+    # path can act on. Filling the gaps is also the only shape that does not
+    # make a lap's columns depend on which lap happened to come first.
     def lap_attributes
       laps.each_with_index.map do |lap, index|
         next unless lap.is_a?(Hash)
 
-        lap.slice(*LAP_ATTRIBUTES).symbolize_keys.merge(lap_index: index)
+        values = lap.slice(*LAP_ATTRIBUTES).symbolize_keys
+        LAP_COLUMNS.index_with { |column| values[column] }.merge(lap_index: index)
       end.compact
     end
 

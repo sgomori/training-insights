@@ -103,6 +103,26 @@ RSpec.describe "POST /webhooks/activity" do
       expect(laps.last.distance_meters).to eq(156.5)
     end
 
+    # A sensor that drops out mid-run leaves the affected laps without the key
+    # at all, since the sender omits nulls. Bulk insert rejects a ragged key
+    # set, so the whole activity used to fail on an otherwise ordinary run.
+    it "stores laps whose optional fields are present on some laps and absent on others" do
+      payload["laps"][1].delete("average_heart_rate")
+      payload["laps"][1].delete("average_cadence")
+      payload["laps"][2].delete("max_heart_rate")
+
+      expect { post_payload(payload) }.to change(Activity, :count).by(1)
+      expect(response).to have_http_status(:ok)
+
+      laps = Activity.sole.activity_laps.order(:lap_index)
+      expect(laps.count).to eq(4)
+      expect(laps.second.average_heart_rate).to be_nil
+      expect(laps.second.average_cadence).to be_nil
+      expect(laps.third.max_heart_rate).to be_nil
+      expect(laps.first.average_heart_rate).to eq(119)
+      expect(laps.second.distance_meters).to be_present
+    end
+
     it "stores streams under the enhanced_ keys the pipeline actually sends" do
       post_payload(payload)
       stream = Activity.sole.activity_stream
