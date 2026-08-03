@@ -15,9 +15,15 @@
 default: &default
   adapter: postgresql
   encoding: unicode
-  # For details on connection pooling, see Rails configuration guide
-  # https://guides.rubyonrails.org/configuring.html#database-pooling
-  max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  # Puma's request threads and, when SOLID_QUEUE_IN_PUMA is set, Solid Queue's
+  # own threads draw from this pool. Sizing it to RAILS_MAX_THREADS leaves the
+  # queue nothing, and a request that waits out the checkout timeout raises
+  # ConnectionTimeoutError — which Webhooks::BaseController does not rescue, so
+  # it surfaces as an unlogged 500 rather than a recorded delivery failure. The
+  # headroom matches the worker thread count in config/queue.yml.
+  #
+  # Pools fill lazily, so this is a ceiling rather than a reservation.
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5).to_i + 3 %>
 
 
 development:
