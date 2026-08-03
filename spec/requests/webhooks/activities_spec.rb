@@ -152,6 +152,28 @@ RSpec.describe "POST /webhooks/activity" do
       )
       expect(log.record).to eq(Activity.sole)
     end
+
+    # An unanticipated error used to bypass logging entirely, so the delivery
+    # that failed left nothing in webhook_logs and the only evidence was a
+    # stack trace in the application log.
+    it "logs a delivery that fails for a reason the endpoint did not anticipate" do
+      allow(Ingestion::ActivityWriter).to receive(:new).and_raise(ArgumentError, "ragged keys")
+
+      expect { post_payload(payload) }
+        .to raise_error(ArgumentError, "ragged keys")
+        .and change(WebhookLog, :count).by(1)
+
+      log = WebhookLog.sole
+      expect(log).to have_attributes(status: "failed", source_file: "morning_run.fit")
+      expect(log.error_message).to eq("ArgumentError: ragged keys")
+    end
+
+    it "does not mask the original error when logging the failure also fails" do
+      allow(Ingestion::ActivityWriter).to receive(:new).and_raise(ArgumentError, "ragged keys")
+      allow(WebhookLog).to receive(:create!).and_raise(ActiveRecord::ConnectionNotEstablished)
+
+      expect { post_payload(payload) }.to raise_error(ArgumentError, "ragged keys")
+    end
   end
 
   describe "optional blocks the sender may omit" do
