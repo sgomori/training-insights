@@ -26,13 +26,34 @@ The web frontend is one consumer of the MCP server. External MCP clients (Claude
 
 ## Connecting an MCP client
 
-The canonical instance exposes its MCP server publicly with API key authentication. To connect Claude Desktop or another MCP-compatible client:
+The canonical instance exposes its MCP server publicly, authenticated with a static API key presented as a bearer token:
+
+```
+Authorization: Bearer <your key>
+```
+
+To connect:
 
 1. Request an API key (see the live instance for instructions)
-2. Add the MCP server to your client configuration with the provided key
+2. Add the MCP server to your client, sending the key in the `Authorization` header
 3. Ask questions about the runner's training data
 
-A self-hosted deployment can configure its own API keys for distribution.
+For Claude Code:
+
+```bash
+claude mcp add --transport http training-insights https://training.stevegomori.ca/mcp \
+  --header "Authorization: Bearer <your key>"
+```
+
+Claude Desktop reaches a remote server through a local proxy such as `mcp-remote`, which forwards the same header.
+
+### Which clients this supports
+
+Any client whose configuration lets you set a request header. That covers Claude Code, Claude Desktop via a proxy, and anything speaking Streamable HTTP directly.
+
+It does not cover the custom connectors on claude.ai, which authenticate over OAuth and offer no field for a static token. Supporting them would mean implementing the MCP authorization spec — an OAuth 2.1 authorization server with dynamic client registration — inside an application that is single-runner by design and has no user model to authorize against. That trade is not worth making for one client, so it is deliberately out of scope rather than unbuilt.
+
+A self-hosted deployment issues its own keys, which live in the database rather than in configuration; no redeploy is needed to issue or revoke one.
 
 ## Self-hosting
 
