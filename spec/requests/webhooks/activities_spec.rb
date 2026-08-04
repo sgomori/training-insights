@@ -379,4 +379,39 @@ RSpec.describe "POST /webhooks/activity" do
       expect(WebhookLog.sole.error_message).to match(/unsupported schema_version/)
     end
   end
+
+  # Rails renders "Parameters: #{params.inspect}" at info level, and the streams
+  # are large enough that doing so was a material part of the memory the process
+  # held during a backfill. Ingestion reads the raw body rather than params, so
+  # filtering them costs nothing.
+  describe "parameter logging" do
+    it "keeps the sample arrays out of the log" do
+      post_payload(payload)
+
+      filtered = request.filtered_parameters
+
+      expect(filtered["streams"]).to eq("[FILTERED]")
+      expect(filtered["laps"]).to eq("[FILTERED]")
+    end
+
+    # Filtering is a rendering concern: it applies to the copy the log line is
+    # built from and leaves the request's own parameters untouched. Asserting
+    # that ingestion still works would not show this — ingestion reads the raw
+    # body, so it would pass with the filter removed and pass again if the
+    # filter did reach params.
+    it "filters the logged copy without altering the request parameters" do
+      post_payload(payload)
+
+      expect(request.filtered_parameters["streams"]).to eq("[FILTERED]")
+      expect(request.request_parameters["streams"]).to include("heart_rate")
+    end
+
+    it "leaves a key that merely contains a filtered name alone" do
+      payload["elapsed_time_seconds"] = 3600
+
+      post_payload(payload)
+
+      expect(request.filtered_parameters["elapsed_time_seconds"]).to eq(3600)
+    end
+  end
 end

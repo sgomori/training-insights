@@ -21,9 +21,6 @@ Rails.application.configure do
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
-
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true
 
@@ -52,6 +49,20 @@ Rails.application.configure do
   # Replace the default in-process and non-durable queuing backend for Active Job.
   config.active_job.queue_adapter = :solid_queue
   config.solid_queue.connects_to = { database: { writing: :queue } }
+
+  # How long a shutting-down supervisor waits for running jobs before giving up.
+  #
+  # The gem's five second default is short for a job that waits on an external
+  # API, and overrunning it is not a soft failure: the embedded async supervisor
+  # implements immediate termination as `exit!` (SolidQueue::AsyncSupervisor),
+  # which in async mode is the web process. Puma has already drained its
+  # requests by then — the plugin stops the supervisor on `after_stopped` — so
+  # the cost is the job, which is killed mid-flight and left claimed until
+  # another supervisor recovers it.
+  #
+  # The ceiling is Render's SIGTERM grace period, thirty seconds, after which
+  # the instance is killed regardless. This leaves room for Puma to drain first.
+  config.solid_queue.shutdown_timeout = 15.seconds
 
   # Ignore bad email addresses and do not raise email delivery errors.
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.

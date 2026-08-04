@@ -21,14 +21,36 @@ services:
           name: training-insights-db
           property: connectionString
 
-      # Starter is 512MB. Puma runs single-mode so the Solid Queue supervisor
-      # can share the instance; raise this only on a larger plan.
+      # Starter is 512MB. Puma runs single-mode and Solid Queue runs in async
+      # mode inside it (see config/puma.rb), so the whole service is one Ruby
+      # process.
+      #
+      # WEB_CONCURRENCY must stay 0 while that holds. Puma fires plugins from
+      # the cluster master, so a worker count above zero would start the Solid
+      # Queue supervisor in a process that serves no requests and, without
+      # preload_app!, has not loaded the application. Scale with worker threads
+      # in config/queue.yml and the pools in config/database.yml, or move jobs
+      # to a service of their own.
       - key: WEB_CONCURRENCY
         value: 0
       - key: RAILS_MAX_THREADS
         value: 3
       - key: SOLID_QUEUE_IN_PUMA
         value: true
+
+      # Connections available to the embedded queue: the supervisor, dispatcher,
+      # worker and scheduler threads, plus request threads enqueuing jobs. Raise
+      # it here if ConnectionTimeoutError appears in the logs — no deploy needed.
+      - key: QUEUE_DB_POOL
+        value: 16
+
+      # glibc gives each thread its own malloc arena, up to 64MB of address
+      # space apiece, and returns freed memory to the OS reluctantly. With
+      # request threads and job threads in one process that makes resident
+      # memory track thread count rather than live data. Two arenas trade a
+      # little allocator contention for a much flatter memory profile.
+      - key: MALLOC_ARENA_MAX
+        value: 2
 
       - key: RAILS_ENV
         value: production

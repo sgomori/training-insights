@@ -35,7 +35,29 @@ port ENV.fetch("PORT", 3000)
 plugin :tmp_restart
 
 # Run the Solid Queue supervisor inside of Puma for single-server deployments.
-plugin :solid_queue if ENV["SOLID_QUEUE_IN_PUMA"]
+#
+# `fork`, the plugin's default, forks a process per configured worker,
+# dispatcher and scheduler — four children beside Puma, each carrying its own
+# copy of the eager-loaded application. Copy-on-write shares those pages at
+# first, but Ruby's GC writes mark bits into object headers, so the children
+# drift toward independent heaps over a few hours. That is what reached the
+# 512MB ceiling with no traffic at all on 2026-08-03.
+#
+# `async` runs the same roles as threads here instead. Solid Queue reserves it
+# for callers with a specific reason; being memory-bound is that reason. Two
+# tradeoffs: jobs lose process isolation from the web server, and a job that
+# outlives `config.solid_queue.shutdown_timeout` is killed by an `exit!` in
+# this process rather than in a child — see config/environments/production.rb.
+# Job threads remain separate from Puma's request pool either way.
+#
+# Two ordering constraints, both of which fail at boot if broken:
+# `solid_queue_mode` is defined by the plugin, so it must follow the `plugin`
+# call that requires it; and Puma evaluates this file before Rails, so Active
+# Support is absent and `present?` is not available for the guard.
+if %w[true 1 yes].include?(ENV["SOLID_QUEUE_IN_PUMA"].to_s.strip.downcase)
+  plugin :solid_queue
+  solid_queue_mode :async
+end
 
 # Specify the PID file. Defaults to tmp/pids/server.pid in development.
 # In other environments, only set the PID file if requested.

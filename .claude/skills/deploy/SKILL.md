@@ -67,7 +67,8 @@ Expect `401` — that proves the route is live and the secret is enforced, witho
 
 ## Operational notes
 
-- **Starter is 512MB.** Puma runs in single mode (`WEB_CONCURRENCY=0`) with Solid Queue embedded via the Puma plugin (`SOLID_QUEUE_IN_PUMA=true`) to fit inside it. If the service starts OOM-restarting under real load, the fix is the Standard tier, not shaving the worker count further.
+- **Starter is 512MB.** Puma runs in single mode (`WEB_CONCURRENCY=0`) with Solid Queue embedded via the Puma plugin (`SOLID_QUEUE_IN_PUMA=true`) in **async** mode, so the whole service is one Ruby process. Fork mode ran four more beside it and OOM-restarted the instance at idle on 2026-08-03. Do not raise `WEB_CONCURRENCY` while async mode is set — Puma fires plugins from the cluster master. If the service starts OOM-restarting again, the fix is the Standard tier, not shaving threads.
+- **`Ops::MemoryReport` logs RSS and GC statistics hourly.** Grep the Render log stream for `memory rss_mb=` to see the trend before and after a deploy. That is the only memory signal the service emits.
 - The MCP transport is mounted **stateless**, so instance count is not a correctness constraint — scaling out is safe.
 - Managed PostgreSQL backups are Render's responsibility, but **verify a restore actually works** before treating the canonical instance's data as durable. An untested backup is not a backup.
 - The website's chat calls the Anthropic API with the MCP connector pointed at the public `/mcp` URL, so `MCP_SERVER_URL` and `MCP_API_KEY` must be set in the Render environment and the URL must be publicly reachable.

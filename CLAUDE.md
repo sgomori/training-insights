@@ -130,7 +130,7 @@ When in doubt about exposing a field, err toward not exposing.
 |---|---|
 | MCP transport | Streamable HTTP, mounted **stateless**. The HTTP/SSE transport named in the original spec is deprecated. Stateless mode avoids the official SDK's in-memory session state, which would otherwise force a single process. |
 | MCP implementation | The official `mcp` Ruby gem, not hand-rolled |
-| Background jobs | Solid Queue, embedded in Puma via the plugin |
+| Background jobs | Solid Queue, embedded in Puma via the plugin, in **async** mode. Fork mode ran a supervisor, dispatcher, worker and scheduler as separate processes, which cost more than a 512MB instance had to give. Async runs them as threads in the web process. The `processes` key in `config/queue.yml` is ignored as a result — scale with threads. |
 | ActivityStream storage | PostgreSQL array columns, one row per activity — not timestamped rows. No tool queries *into* a stream; they aggregate whole streams. |
 | Activity idempotency key | `[source, started_at]`. The payload carries no stable source ID and `file` can be reused. |
 | Deployment | Render — Starter web service plus Basic-1gb managed PostgreSQL. Fly.io was the original preference; its managed Postgres now starts at $38/mo, roughly double the alternative. |
