@@ -152,13 +152,13 @@ module AnalyticalTools
 
       def history(zone)
         earliest = Activity.minimum(:started_at)
-        return { activities: 0, note: "No activities have been ingested yet." } if earliest.nil?
+        return { activities: 0, note: "No activities have been recorded yet." } if earliest.nil?
 
         {
           activities: Activity.count,
           first_activity_date: earliest.in_time_zone(zone).to_date.to_s,
           spans_days: (zone.today - earliest.in_time_zone(zone).to_date).to_i + 1,
-          note: "Records are drawn from the whole ingested history. Anything run before the first " \
+          note: "Records are drawn from the whole recorded history. Anything run before the first " \
                 "activity date is not represented."
         }
       end

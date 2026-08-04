@@ -53,7 +53,7 @@ RSpec.describe AnalyticalTools::SuggestNextRun do
 
     it "says there is no training to read against on an empty database" do
       expect(payload[:last_activity][:note]).to match(/no training to read against/)
-      expect(payload[:notable]).to include("No activities have been ingested.")
+      expect(payload[:notable]).to include("No activities have been recorded.")
     end
 
     it "flags a long gap since the last activity" do
@@ -78,7 +78,7 @@ RSpec.describe AnalyticalTools::SuggestNextRun do
       recovery = payload[:recovery_indicators]
       expect(recovery[:available]).to be(false)
       expect(recovery[:missing_metric_types]).to contain_exactly("hrv", "resting_hr", "sleep")
-      expect(recovery[:note]).to match(/gap in that feed rather than a statement about the runner/)
+      expect(recovery[:note]).to match(/absence says nothing about the runner/)
       expect(payload[:notable]).to include(a_string_matching(/No recovery data is available/))
     end
 

@@ -53,8 +53,8 @@ module ToolRegistry
     computed on.
 
     Two absences are deliberate rather than accidental, and a response will say
-    so where it matters. A figure may be missing because the pipeline could not
-    derive it — that is a gap in the source data, not a zero. And a delta or
+    so where it matters. A figure may be missing because the source data did not
+    carry what it needed — that is a gap, not a zero. And a delta or
     trend may be suppressed because the sample behind it was too thin to carry
     one; where that happens the response names which side was thin instead of
     returning a bare null.

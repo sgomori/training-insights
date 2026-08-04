@@ -97,7 +97,7 @@ module AnalyticalTools
 
       def last_activity(zone)
         activity = Activity.most_recent_first.includes(:race).first
-        return { note: "No activities have been ingested, so there is no training to read against." } if activity.nil?
+        return { note: "No activities have been recorded, so there is no training to read against." } if activity.nil?
 
         date = activity.started_at.in_time_zone(zone).to_date
 
@@ -134,9 +134,9 @@ module AnalyticalTools
             available: false,
             missing_metric_types: RECOVERY_METRICS.keys.map(&:to_s),
             note: "No recovery data is available: the health metric types " \
-                  "#{RECOVERY_METRICS.keys.map(&:to_s).to_sentence} have no readings. Recovery arrives by " \
-                  "a separate ingestion path from activities, so this is a gap in that feed rather than a " \
-                  "statement about the runner. Every other section of this response is unaffected."
+                  "#{RECOVERY_METRICS.keys.map(&:to_s).to_sentence} have no readings. Recovery data is " \
+                  "recorded separately from activities, so its absence says nothing about the runner's " \
+                  "training or recovery. Every other section of this response is unaffected."
           }
         end
 
@@ -202,8 +202,8 @@ module AnalyticalTools
           basis: "Duration-weighted share of time in heart rate zones 1 and 2. The 80/20 convention holds " \
                  "that roughly #{EASY_TARGET_PCT.to_i}% of training time should be easy; the deviation is " \
                  "reported, not judged. Mapping zones 1 and 2 onto \"easy\" assumes zone 2 tops out near " \
-                 "the first lactate threshold, which holds for the pipeline's default percent-of-threshold " \
-                 "boundaries but not necessarily for hand-configured fixed-BPM zones.",
+                 "the first lactate threshold, which holds for percent-of-threshold zone boundaries but " \
+                 "not necessarily for fixed-BPM ones.",
           last_7d: easy_share(TrainingWindow.ending(zone.today, days: 7, zone: zone)),
           last_28d: easy_share(TrainingWindow.ending(zone.today, days: 28, zone: zone))
         }
@@ -330,7 +330,7 @@ module AnalyticalTools
 
       def rest_signals(payload, context)
         last = payload[:last_activity]
-        return [ "No activities have been ingested." ] if last[:date].nil?
+        return [ "No activities have been recorded." ] if last[:date].nil?
 
         signals = []
         days_ago = last[:days_ago]

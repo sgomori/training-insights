@@ -220,8 +220,8 @@ module AnalyticalTools
         end
 
         if distance_filtered
-          signals << "A distance filter is applied, so activities whose distance the pipeline " \
-                     "did not record are excluded regardless of how far they went."
+          signals << "A distance filter is applied, so activities with no recorded distance are " \
+                     "excluded regardless of how far they went."
         end
 
         signals

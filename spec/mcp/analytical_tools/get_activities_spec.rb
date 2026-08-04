@@ -92,7 +92,7 @@ RSpec.describe AnalyticalTools::GetActivities do
 
       result = described_class.call(min_distance_km: 1).structured_content
       expect(result[:total_matching]).to eq(1)
-      expect(result[:notable]).to include(a_string_matching(/did not record are excluded/))
+      expect(result[:notable]).to include(a_string_matching(/no recorded distance are excluded/))
     end
   end
 

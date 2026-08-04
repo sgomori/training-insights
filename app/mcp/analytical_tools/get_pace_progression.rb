@@ -296,7 +296,8 @@ module AnalyticalTools
           basis: "Least-squares slope per #{bucket_weeks}-week bucket. Each metric is fitted only across " \
                  "the full-width buckets whose own sample reaches " \
                  "#{TrainingWindow::MIN_SAMPLE_FOR_TREND} activities carrying it, and buckets_used says how " \
-                 "many that was — coverage differs by metric when the pipeline derived some and not others. " \
+                 "many that was — coverage differs by metric, since some are recorded for activities that " \
+                 "others are missing from. " \
                  "The oldest bucket is excluded when the window clipped it short, because its midpoint sits " \
                  "closer to its neighbour than a full bucket's would and it would understate the rate. " \
                  "A negative pace slope means the runner is getting faster; a negative efficiency factor " \
@@ -377,7 +378,7 @@ module AnalyticalTools
           next if used >= 2 || series.none? { |row| row[column][:sample_size].positive? }
 
           "#{column} is carried by too few well-sampled buckets (#{used}) to fit a trend, " \
-            "even though some buckets hold the metric. The pipeline derived it for only part of the corpus."
+            "even though some buckets hold the metric. It is recorded for only part of the history."
         end
       end
 
