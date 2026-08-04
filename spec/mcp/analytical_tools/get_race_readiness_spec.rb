@@ -143,24 +143,50 @@ RSpec.describe AnalyticalTools::GetRaceReadiness do
       expect(payload[:peak_week]).to include(week_start: "2026-05-25", distance_km: 80.0)
     end
 
-    it "reports the latest week against the peak, with a band and no verdict" do
+    # The peak is drawn from finished weeks, so banding the week in progress
+    # against it compares a part-week with a whole one. On a Monday that reads
+    # as a deep taper; on a Sunday it reads as a finished week with the long run
+    # possibly still ahead that afternoon.
+    it "reports the week in progress without banding it" do
       taper = payload[:taper_status]
 
-      expect(taper).to include(peak_week_start: "2026-05-25", weeks_from_peak: 3)
-      expect(taper[:current_week_vs_peak][:value]).to eq(0.0)
-      expect(taper[:current_week_vs_peak][:band]).to eq("deep taper or interruption")
+      expect(taper).to include(peak_week_start: "2026-05-25", latest_week_start: "2026-06-15",
+                               weeks_from_peak: 3)
+      expect(taper[:current_week_vs_peak]).to include(value: 0.0, band: nil)
+      expect(taper[:current_week_vs_peak][:note])
+        .to match(/1 day into a seven-day week and is still being run/)
+    end
+
+    it "keeps the week in progress out of the notable signals" do
+      expect(payload[:notable]).not_to include(a_string_matching(/against a peak of 80\.0km/))
+    end
+  end
+
+  describe "taper status once the most recent week has finished" do
+    # A race on today's date ends the buildup window yesterday, so the last
+    # bucket is a complete week that is no longer being run — the only case in
+    # which a ratio against the peak means anything.
+    let!(:race_today) do
+      create(:race, name: "Sunday Marathon", race_date: Date.new(2026, 6, 15),
+        distance_meters: 42_195, status: "upcoming")
+    end
+
+    before do
+      4.times { |i| run_on(Date.new(2026, 5, 25) + i, distance_meters: 20_000) }
+      3.times { |i| run_on(Date.new(2026, 6, 8) + i, distance_meters: 10_000) }
+    end
+
+    it "bands the week against the peak, with no verdict" do
+      taper = payload[:taper_status]
+
+      expect(taper).to include(peak_week_start: "2026-05-25", latest_week_start: "2026-06-08",
+                               weeks_from_peak: 2)
+      expect(taper[:current_week_vs_peak]).to include(value: 0.38, band: "deep taper or interruption")
       expect(taper[:current_week_vs_peak][:guidance]).to match(/says nothing about whether the taper was/)
     end
 
-    it "caveats a partial most recent week rather than comparing it as a full one" do
-      taper = payload[:taper_status]
-
-      expect(taper[:latest_week_start]).to eq("2026-06-15")
-      expect(taper[:current_week_vs_peak][:caveats]).to include(a_string_matching(/only 1 day into the window/))
-    end
-
     it "names the drop from the peak as a signal" do
-      expect(payload[:notable]).to include(a_string_matching(/against a peak of 80\.0km 3 weeks earlier/))
+      expect(payload[:notable]).to include(a_string_matching(/against a peak of 80\.0km 2 weeks earlier/))
     end
   end
 

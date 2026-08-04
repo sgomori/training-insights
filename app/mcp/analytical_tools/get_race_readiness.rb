@@ -212,7 +212,7 @@ module AnalyticalTools
                   "The race itself is excluded, so it cannot count as its own preparation." ]
 
         if earliest.nil?
-          parts << "No activities have been ingested, so the buildup is empty."
+          parts << "No activities have been recorded, so the buildup is empty."
         elsif earliest > nominal_from
           parts << "History begins #{earliest}, so the window starts there instead."
         end
@@ -291,18 +291,29 @@ module AnalyticalTools
           weeks_from_peak: ((latest.week_start - peak.week_start).to_i / 7),
           latest_week_distance_km: latest.distance_km,
           peak_week_distance_km: peak_km,
-          current_week_vs_peak: MetricInterpretation.describe(
-            :taper_ratio, value: ratio, caveats: taper_caveats(latest)
-          )
+          current_week_vs_peak: taper_comparison(latest, ratio)
         }
       end
 
-      def taper_caveats(latest)
-        return [] if latest.complete?
+      # A week still being run is not banded at all.
+      #
+      # The peak is chosen from comparable weeks, so banding the latest one
+      # against it compares a part-week with a whole one: on the first day of a
+      # week that reads as "deep taper or interruption", and on the last day it
+      # reads as a finished week even though the long run may still be ahead
+      # that afternoon. Naming a band and appending a caveat leaves the client
+      # to discount the band. Withholding it is the server doing that work.
+      def taper_comparison(latest, ratio)
+        return MetricInterpretation.describe(:taper_ratio, value: ratio) if latest.comparable?
 
-        [ "The most recent week is only #{latest.days_in_window} " \
-          "#{'day'.pluralize(latest.days_in_window)} into the window, so its volume is not yet " \
-          "comparable with a full week's." ]
+        {
+          value: ratio,
+          band: nil,
+          note: "The most recent week is #{latest.days_in_window} " \
+                "#{'day'.pluralize(latest.days_in_window)} into a seven-day week and is still being " \
+                "run, so its volume is not yet comparable with a finished week's and is not " \
+                "interpreted here."
+        }
       end
 
       # Counting activities whose grade-adjusted pace sits near goal pace. Whole
@@ -500,15 +511,18 @@ module AnalyticalTools
         weeks_since = (latest.week_start - peak.week_start).to_i / 7
         return [] if weeks_since.zero?
 
+        # notable is the first thing a client reads, so a week still being run
+        # is left out of it entirely rather than named with a caveat attached.
+        # taper_status still reports the raw ratio and says why it is not
+        # interpreted.
+        return [] unless latest.comparable?
+
         ratio = (latest.distance_km / peak.distance_km).round(2)
         band = MetricInterpretation.describe(:taper_ratio, value: ratio)[:band]
-        # notable is the first thing a client reads, so the caveat travels with
-        # the number here too rather than only on the structured field.
-        caveat = taper_caveats(latest).first
 
-        [ [ "The most recent week covered #{latest.distance_km}km against a peak of " \
-            "#{peak.distance_km}km #{weeks_since} #{'week'.pluralize(weeks_since)} earlier — " \
-            "a ratio of #{ratio} (#{band}).", caveat ].compact.join(" ") ]
+        [ "The most recent week covered #{latest.distance_km}km against a peak of " \
+          "#{peak.distance_km}km #{weeks_since} #{'week'.pluralize(weeks_since)} earlier — " \
+          "a ratio of #{ratio} (#{band})." ]
       end
 
       def race_pace_signals(pace_work, target)
