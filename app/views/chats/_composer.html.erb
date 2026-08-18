@@ -1,0 +1,29 @@
+<div class="sticky bottom-0 -mx-1 bg-ground pt-4 pb-6">
+  <%= form_with url: chat_path, data: { controller: "chat", action: "turbo:submit-end->chat#reset" } do |form| %>
+    <%# The block cursor follows the input in source order so a sibling selector
+        can hide it once anything is typed, and `order` puts it back in front of
+        the field visually. That is the whole mechanism — no JavaScript. %>
+    <div class="flex items-center gap-2 rounded-xl border border-rule bg-panel px-3 py-2 focus-within:border-accent">
+      <span class="order-1 font-mono text-base text-accent" aria-hidden="true">&gt;</span>
+
+      <%= form.label :question, "Ask about the training", class: "sr-only" %>
+      <%= form.text_field :question,
+            placeholder: "ask about the training",
+            autocomplete: "off",
+            maxlength: ChatsController::MAX_LENGTH,
+            data: { chat_target: "input" },
+            class: "order-3 min-w-0 flex-1 bg-transparent font-mono text-base text-stone-100 placeholder:text-stone-400 focus:outline-none" %>
+
+      <span class="caret-blink order-2 font-mono text-base text-accent" aria-hidden="true">&#9608;</span>
+
+      <%= form.button type: "submit",
+            class: "order-4 shrink-0 rounded-lg px-2 py-1 font-mono text-sm text-stone-400 hover:text-accent focus:text-accent focus:outline-none" do %>
+        send
+      <% end %>
+    </div>
+  <% end %>
+
+  <p class="mt-2 px-1 font-mono text-xs text-stone-400">
+    Answers come from the same tools any MCP client can call. Each question is answered on its own.
+  </p>
+</div>

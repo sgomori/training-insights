@@ -1,0 +1,24 @@
+<%= render layout: "home/widget", locals: { title: "Recent races" } do %>
+  <% if races.empty? %>
+    <%= render "home/empty", message: "No races run yet." %>
+  <% else %>
+    <ul class="space-y-3">
+      <% races.each do |race| %>
+        <li class="flex items-baseline justify-between gap-3">
+          <div class="min-w-0">
+            <p class="truncate text-sm text-stone-100"><%= race.name %></p>
+            <p class="mt-0.5 font-mono text-xs text-stone-400">
+              <%= short_date(race.race_date) %>
+              <span class="text-rule">&middot;</span>
+              <%= distance(race.distance_meters) %>
+            </p>
+          </div>
+
+          <p class="shrink-0 font-mono text-sm tabular-nums text-phosphor">
+            <%= elapsed(race.result_time_seconds) || "&mdash;".html_safe %>
+          </p>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+<% end %>

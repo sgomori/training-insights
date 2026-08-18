@@ -1,0 +1,31 @@
+<%= render layout: "home/widget", locals: { title: "Upcoming races" } do %>
+  <% if races.empty? %>
+    <%= render "home/empty", message: "Nothing on the calendar." %>
+  <% else %>
+    <ul class="space-y-3">
+      <% races.each do |race| %>
+        <li>
+          <p class="text-sm font-medium text-stone-100"><%= race.name %></p>
+
+          <%# The countdown is amber rather than green: it is the one figure here
+              that moves on its own. %>
+          <p class="mt-0.5 font-mono text-xs text-stone-400">
+            <%= short_date(race.race_date) %>
+            <span class="text-rule">&middot;</span>
+            <%= distance(race.distance_meters) %>
+            <% if (days = race.days_until) && days.positive? %>
+              <span class="text-rule">&middot;</span>
+              <span class="text-accent"><%= pluralize(days, "day") %> away</span>
+            <% end %>
+          </p>
+
+          <% if race.target_time_seconds %>
+            <p class="mt-0.5 font-mono text-xs text-stone-400">
+              target <span class="text-phosphor"><%= elapsed(race.target_time_seconds) %></span>
+            </p>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+<% end %>

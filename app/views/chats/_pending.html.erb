@@ -1,0 +1,18 @@
+<%#
+  The transient activity indicator, and the honest version of it: one signal
+  while the turn runs, replaced by the answer. Naming the tools as they are
+  called would need the response streamed rather than broadcast at the end.
+
+  The subscription lives inside the bubble, so it is torn down by the same
+  replacement that delivers the answer. It is a one-shot channel.
+%>
+<article id="<%= turn.dom_id %>" class="flex items-center gap-3">
+  <%= turbo_stream_from turn.stream_name %>
+
+  <%= render "shared/ascii_runner", classes: "text-[0.5rem]" %>
+
+  <span class="ascii-trail font-mono text-sm text-accent" role="status">
+    <span>.</span><span>.</span><span>.</span>
+    <span class="sr-only">Working out the answer.</span>
+  </span>
+</article>

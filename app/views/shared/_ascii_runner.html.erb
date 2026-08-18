@@ -1,0 +1,41 @@
+<%#
+  Four frames of a running figure in profile, stacked into one strip. The CSS
+  shows six lines at a time and steps the strip up a frame per step; the
+  whitespace is load-bearing, so leave the alignment alone.
+
+  The cycle is stride, gather, opposite stride, gather. Feet land on the last
+  row of every frame and the head rises a line on the gathered frames, because
+  the legs fold under the body rather than the body leaving the ground. Arms
+  alternate high and low, which is the cue a front-on figure cannot give.
+
+  Decorative throughout — hidden from assistive technology, and frozen on the
+  first frame where motion is not wanted.
+%>
+<div class="ascii-runner select-none font-mono text-accent <%= local_assigns[:classes] %>"
+     aria-hidden="true">
+  <pre class="ascii-runner__frames">       o
+       |_/
+     \_|
+      / \
+     /   \
+    /    |
+
+       o
+     \_|
+       |_/
+       |\
+       |
+       o
+     \_|
+       |_/
+      / \
+     /   \
+     |    \
+
+       o
+       |_/
+     \_|
+      /|
+       |
+</pre>
+</div>

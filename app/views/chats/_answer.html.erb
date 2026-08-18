@@ -1,0 +1,18 @@
+<%#
+  Rendered both from the controller, for an answer already in the cache, and
+  from the job, which broadcasts it over the turn's own channel. The id has to
+  match the pending bubble it replaces.
+
+  The prompt asks for prose and forbids headings, lists and tables, so there is
+  no markup to render and no renderer to reach for — simple_format splits the
+  paragraphs and that is all that is wanted.
+
+  It is given escaped text and told not to sanitise, rather than handed the raw
+  string. simple_format sanitises by default, which strips a <script> but passes
+  an <a href> straight through: a model that emitted one would put a live
+  outbound link on the page. The no-markup rule is a prompt-level guarantee, and
+  a prompt-level guarantee is the wrong thing to leave holding this.
+%>
+<article id="<%= turn.dom_id %>" class="space-y-4 text-stone-300">
+  <%= simple_format(h(answer), { class: "text-[1.0625rem] leading-7" }, sanitize: false) %>
+</article>

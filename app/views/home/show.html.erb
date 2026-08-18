@@ -1,53 +1,91 @@
 <% content_for :title, "Training Insights" %>
 
-<section>
-  <h1 class="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
-    <%= @runner&.name || "A runner" %>'s training data, as analytical tools
-  </h1>
+<%# Real figures, not decoration. This is the one place a visitor can see what
+    the server actually holds, and it doubles as a smoke test: a zero here means
+    ingestion is broken rather than the page. %>
+<%# Each figure is one unbreakable span, so the line wraps between them and
+    never splits a number from its label. Normal inline flow does the rest —
+    a flex row would need the separators to be items too, and they would then
+    wrap onto lines of their own. %>
+<p class="mb-10 font-mono text-xs leading-relaxed text-stone-400 sm:text-sm">
+  <span class="whitespace-nowrap"><span class="text-accent">&gt;</span> connect mcp://training.insights</span>
+  <span class="whitespace-nowrap"><span class="text-rule">&hellip;</span> <span class="text-phosphor">ok</span></span>
+  <span class="whitespace-nowrap"><span class="text-rule">&middot;</span> <span class="text-phosphor"><%= @status[:tools] %></span> <%= "tool".pluralize(@status[:tools]) %></span>
+  <span class="whitespace-nowrap"><span class="text-rule">&middot;</span> <span class="text-phosphor"><%= number_with_delimiter(@status[:activities]) %></span> <%= "activity".pluralize(@status[:activities]) %></span>
+  <span class="whitespace-nowrap"><span class="text-rule">&middot;</span> <span class="text-phosphor"><%= @status[:races] %></span> <%= "race".pluralize(@status[:races]) %></span>
+  <% if (last_run = days_ago(@status[:last_run])) %>
+    <span class="whitespace-nowrap"><span class="text-rule">&middot;</span> last run <span class="text-phosphor"><%= last_run %></span></span>
+  <% end %>
+</p>
 
-  <div class="mt-6 space-y-4 text-stone-600 dark:text-stone-300">
-    <p>
-      Every run <%= @runner&.name || "the runner" %> records is parsed from its raw Garmin file, reduced to the
-      metrics that describe an endurance athlete's training, and exposed through the
-      Model Context Protocol. Any MCP-compatible AI client can connect and ask about it.
-    </p>
+<div class="grid gap-10 pb-24 lg:grid-cols-[minmax(0,1fr)_15rem] lg:gap-12 lg:pb-0">
+  <div class="flex min-w-0 flex-col">
+    <section>
+      <h1 class="text-2xl font-semibold tracking-tight text-stone-100">
+        <%= @runner&.name || "A runner" %>'s training data, as analytical tools
+      </h1>
 
-    <p>
-      The tools return shaped aggregations rather than raw data — volume and load over a
-      period, intensity distribution, pace progression against grade, race readiness — and
-      stop short of drawing conclusions. Interpretation is left to whichever client is asking.
-    </p>
+      <p class="mt-4 text-[1.0625rem] leading-7 text-stone-300">
+        Every run is reduced to the metrics that describe an endurance athlete's training and
+        exposed through the Model Context Protocol. Any MCP-compatible AI client can connect and
+        ask about it &mdash; including the one answering below.
+      </p>
+    </section>
+
+    <%# The standing summary opens the transcript as though it had been asked for,
+        because in every sense that matters it was: same tools, same voice. %>
+    <div id="transcript" class="mt-10 space-y-8">
+      <% if @summary %>
+        <article class="space-y-4 text-stone-300">
+          <%= simple_format(@summary, class: "text-[1.0625rem] leading-7") %>
+        </article>
+      <% else %>
+        <p class="text-stone-400">
+          The standing summary is written when a new run arrives. Ask a question below in the
+          meantime &mdash; the tools are already answering.
+        </p>
+      <% end %>
+    </div>
+
+    <% if @suggested_prompts.any? %>
+      <div class="mt-8 flex flex-wrap gap-2">
+        <% @suggested_prompts.each do |prompt| %>
+          <%= button_to prompt, chat_path, params: { question: prompt },
+                form_class: "max-w-full",
+                class: "max-w-full rounded-2xl border border-rule px-3 py-1.5 text-left text-sm text-stone-300 hover:border-accent hover:text-accent sm:rounded-full" %>
+        <% end %>
+      </div>
+    <% end %>
+
+    <div class="mt-auto pt-8">
+      <%= render "chats/composer" %>
+    </div>
   </div>
 
-  <% if @next_race %>
-    <p class="mt-8 border-l-2 border-stone-300 pl-4 text-stone-600 dark:border-stone-700 dark:text-stone-300">
-      Next up:
-      <span class="font-medium text-stone-900 dark:text-stone-100"><%= @next_race.name %></span>
-      on <%= l @next_race.race_date, format: :long %><%
-        %><% if (days = @next_race.days_until) && days.positive? %>, <%= pluralize(days, "day") %> away<% end %>.
-    </p>
-  <% end %>
-</section>
+  <aside class="space-y-8 lg:sticky lg:top-8 lg:self-start">
+    <%= render "home/upcoming_races", races: @upcoming_races %>
+    <%= render "home/recent_races", races: @recent_races %>
+    <%= render "home/recent_runs", runs: @recent_runs, time_zone: @time_zone %>
+  </aside>
+</div>
 
-<%# The pre-generated content block and the chat surface both land here. %>
-
-<section class="mt-16">
-  <h2 class="text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+<section class="mt-16 border-t border-rule pt-10">
+  <h2 class="font-mono text-xs tracking-[0.18em] text-phosphor uppercase">
     Connect your own client
   </h2>
 
-  <div class="mt-4 space-y-4 text-stone-600 dark:text-stone-300">
+  <div class="mt-4 max-w-2xl space-y-4 text-stone-300">
     <p>
       The server speaks Streamable HTTP and authenticates with a bearer token. Point any
       MCP client at the endpoint below and it will discover the available tools on connect.
     </p>
 
-    <pre class="overflow-x-auto rounded-lg bg-stone-100 p-4 text-sm text-stone-800 dark:bg-stone-900 dark:text-stone-200"><code><%= "#{request.base_url}/mcp" %></code></pre>
+    <pre class="overflow-x-auto rounded-lg border border-rule bg-panel p-4 font-mono text-sm text-phosphor"><code><%= "#{request.base_url}/mcp" %></code></pre>
 
     <p>
-      Keys are issued on request and are read-only — a client can query the training
+      Keys are issued on request and are read-only &mdash; a client can query the training
       history and nothing else. Running your own instance needs no key from anyone:
-      the project is self-hostable end to end, against your own Garmin exports.
+      the project is self-hostable end to end, against your own exports.
     </p>
   </div>
 </section>

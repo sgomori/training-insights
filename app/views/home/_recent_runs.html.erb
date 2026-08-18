@@ -1,0 +1,30 @@
+<%#
+  Date, distance and pace. No heart rate: it is analytically useful and it stays
+  in the tool responses, but it is not displayed in raw form on this site.
+
+  The figure the row exists for sits right and goes green, which is what gives
+  the sidebar one legible column of numbers rather than three competing ones.
+%>
+<%= render layout: "home/widget", locals: { title: "Recent runs" } do %>
+  <% if runs.empty? %>
+    <%= render "home/empty", message: "No runs recorded yet." %>
+  <% else %>
+    <ul class="space-y-2">
+      <% runs.each do |run| %>
+        <li class="flex items-baseline justify-between gap-3 font-mono text-sm">
+          <span class="w-14 shrink-0 text-stone-400">
+            <%= short_date(run.started_at.in_time_zone(time_zone).to_date) %>
+          </span>
+
+          <span class="tabular-nums text-stone-100">
+            <%= distance(run.distance_meters) || "&mdash;".html_safe %>
+          </span>
+
+          <span class="w-20 shrink-0 text-right tabular-nums text-phosphor">
+            <%= pace(run.average_pace_per_km) || "&mdash;".html_safe %>
+          </span>
+        </li>
+      <% end %>
+    </ul>
+  <% end %>
+<% end %>

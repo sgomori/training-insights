@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <title><%= content_for(:title) || "Training Insights" %></title>
     <meta name="description" content="<%= content_for(:description) || "A runner's training data, exposed as analytical tools over the Model Context Protocol." %>">
     <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%# One palette, so the browser is told which one rather than offered both —
+        this is what keeps form controls and scrollbars from rendering light. %>
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#0c0a09">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Training Insights">
     <meta name="mobile-web-app-capable" content="yes">
@@ -15,8 +19,9 @@
     <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
     <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
 
-    <link rel="icon" href="/icon.png" type="image/png">
+    <%# SVG first: it is the sharp one, and every browser that reaches this page can read it. %>
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="icon" href="/icon.png" type="image/png">
     <link rel="apple-touch-icon" href="/icon.png">
 
     <%# Includes all stylesheet files in app/assets/stylesheets %>
@@ -24,20 +29,30 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="bg-white text-stone-800 antialiased dark:bg-stone-950 dark:text-stone-200">
-    <div class="mx-auto flex min-h-screen max-w-2xl flex-col px-6">
-      <header class="pt-16 pb-12">
-        <a href="<%= root_path %>" class="text-sm font-medium tracking-wide text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200">
-          Training Insights
-        </a>
+  <body class="bg-ground text-stone-300 antialiased">
+    <div class="mx-auto flex min-h-screen max-w-5xl flex-col px-4 sm:px-6">
+      <%# The ground line is the header's bottom rule and the surface the runner
+          travels over, which is why the header owns both rather than carrying a
+          border of its own. %>
+      <header class="pt-10">
+        <div class="flex items-end justify-between gap-3 pb-1 sm:gap-6">
+          <a href="<%= root_path %>" class="font-mono text-sm tracking-tight text-stone-400 hover:text-stone-100">
+            <span class="text-accent">&gt;</span>
+            <span class="font-medium">training.insights</span>
+          </a>
+
+          <%= render "shared/ascii_runner", classes: "shrink-0 text-sm sm:text-base" %>
+        </div>
+
+        <%= render "shared/ground_line" %>
       </header>
 
-      <main class="flex-1">
+      <main class="flex-1 pt-8">
         <%= yield %>
       </main>
 
-      <footer class="mt-24 border-t border-stone-200 py-8 text-sm text-stone-500 dark:border-stone-800 dark:text-stone-400">
-        An MCP server for Garmin training data. No route or location data is stored.
+      <footer class="mt-20 border-t border-rule py-8 font-mono text-sm text-stone-400">
+        An MCP server for a runner's training data. No route or location data is stored.
       </footer>
     </div>
   </body>

@@ -1,3 +1,7 @@
-<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="256" cy="256" r="256" fill="red"/>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <title>Training Insights</title>
+  <rect width="512" height="512" rx="112" fill="#1c1917"/>
+  <path d="M150 158 L262 256 L150 354" fill="none" stroke="#f59e0b" stroke-width="52"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="296" y="330" width="118" height="28" rx="14" fill="#f59e0b"/>
 </svg>

@@ -21,5 +21,11 @@ Rails.application.routes.draw do
   # get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
 
   # The public site — one page, no visitor accounts.
+  #
+  # Chat is a create with nothing to show afterwards: the turn is appended to the
+  # page it was asked from, so there is no chat to GET and no collection to
+  # index.
+  post "chat", to: "chats#create", as: :chat
+
   root "home#show"
 end

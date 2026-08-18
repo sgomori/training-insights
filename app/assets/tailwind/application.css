@@ -1,1 +1,129 @@
 @import "tailwindcss";
+
+/* A phosphor terminal: one dark ground, green for data, amber for the prompt.
+ *
+ * There is no light mode. The site commits to the dark ground so the green can
+ * actually read as phosphor — at the light-mode weight it goes muddy, and a
+ * palette tuned for both grounds ends up tuned for neither.
+ *
+ * The two accents divide cleanly, which is what stops them cancelling out:
+ * green is structure and data — labels, rules, figures, the endpoint block —
+ * and amber is the `>` prompt and anything in motion. Prose is neither. A
+ * paragraph never turns green; that is what keeps this readable at length.
+ *
+ * Hue 145 is the yellow-green of P1 phosphor rather than Tailwind's bluer
+ * green scale, which is the difference between reading as a screen and reading
+ * as a brand colour. */
+@theme {
+  --color-ground: oklch(0.145 0.004 106);
+  --color-panel: oklch(0.205 0.005 106);
+
+  --color-phosphor: oklch(0.84 0.22 145);
+  --color-rule: oklch(0.38 0.07 145);
+
+  --color-accent: oklch(0.828 0.189 84.429);
+
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+@layer components {
+  /* A four-frame runner, animated by scrolling a strip of frames past a
+   * six-line window. No JavaScript: the whole thing is one transform on a
+   * <pre>, which costs nothing and cannot fail to load.
+   *
+   * Every length is in `em` rather than `rem`, so the art scales with its own
+   * font-size and the header runner and the smaller pending-turn runner share
+   * one keyframe. Four frames of six lines is twenty-four; stepping a translate
+   * of -24em in four gives one frame per step and lands back where it started.
+   *
+   * The feet sit on the last row in all four frames. The head bobs because the
+   * legs extend on the stride and gather on the pass — moving the whole figure
+   * instead reads as hopping, which is what the first version did. */
+  .ascii-runner {
+    height: 6em;
+    overflow: hidden;
+  }
+
+  .ascii-runner__frames {
+    line-height: 1em;
+    animation: ascii-runner-stride 1.8s steps(4) infinite;
+  }
+
+  @keyframes ascii-runner-stride {
+    to {
+      transform: translateY(-24em);
+    }
+  }
+
+  /* The ground passing underneath, which is what carries the sense of travel —
+   * four frames of legs cannot do it alone. The pattern repeats every two
+   * characters, so translating by any even multiple of `ch` loops seamlessly;
+   * stepping it keeps the glyphs on whole-character boundaries, because text
+   * slid by half a character just looks blurry. */
+  .ascii-ground {
+    overflow: hidden;
+  }
+
+  .ascii-ground__strip {
+    animation: ascii-ground-scroll 0.9s steps(8) infinite;
+  }
+
+  @keyframes ascii-ground-scroll {
+    to {
+      transform: translateX(-8ch);
+    }
+  }
+
+  /* The trail behind the runner while a turn is in flight: three dots arriving
+   * in sequence, at the runner's cadence. */
+  .ascii-trail > span {
+    animation: ascii-trail-fade 1.4s ease-in-out infinite;
+  }
+
+  .ascii-trail > span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .ascii-trail > span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes ascii-trail-fade {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 1; }
+  }
+
+  /* The block cursor in the composer. It hides itself once anything is typed:
+   * `:placeholder-shown` matches only while the field is empty, so a sibling
+   * rule covers the whole behaviour without a line of JavaScript. This is why
+   * the cursor follows the input in source order and is put back in front of it
+   * visually. */
+  .caret-blink {
+    animation: caret-blink 1.1s steps(1) infinite;
+  }
+
+  input:not(:placeholder-shown) ~ .caret-blink {
+    opacity: 0;
+    animation: none;
+  }
+
+  @keyframes caret-blink {
+    0%, 49% { opacity: 1; }
+    50%, 100% { opacity: 0; }
+  }
+
+  /* Motion here is decoration and nothing else, so it stops rather than slows.
+   * The first frame is a complete runner on its own. */
+  @media (prefers-reduced-motion: reduce) {
+    .ascii-runner__frames,
+    .ascii-ground__strip,
+    .ascii-trail > span,
+    .caret-blink {
+      animation: none;
+    }
+
+    .ascii-trail > span {
+      opacity: 0.5;
+    }
+  }
+}
