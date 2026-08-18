@@ -41,8 +41,8 @@ services:
       # Connections available to the embedded queue: the supervisor, dispatcher,
       # worker and scheduler threads, plus request threads enqueuing jobs. Raise
       # it here if ConnectionTimeoutError appears in the logs — no deploy needed.
-      - key: QUEUE_DB_POOL
-        value: 16
+      - key: QUEUE_DB_POOL   # four job threads plus Solid Queue's own roles
+        value: 20
 
       # glibc gives each thread its own malloc arena, up to 64MB of address
       # space apiece, and returns freed memory to the OS reluctantly. With

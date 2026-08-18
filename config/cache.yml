@@ -1,7 +1,17 @@
 default: &default
   store_options:
-    # Cap age of oldest cache entry to fulfill retention policies
-    # max_age: <%= 60.days.to_i %>
+    # Set explicitly, because the default is two weeks and that is short enough
+    # to matter here. The site's standing summary lives under a fixed key so it
+    # survives until something replaces it — but Solid Cache upserts without
+    # touching created_at, so rewriting the entry does not restart its clock.
+    # Left at the default, the summary would age out roughly a fortnight after it
+    # was *first* written and the top of the site would blank itself, which is
+    # exactly the failure the fixed key was chosen to avoid.
+    #
+    # Size is the real eviction lever. Chat answers are namespaced by a data
+    # version, so superseded ones are unreachable rather than stale, and they are
+    # what max_size is here to reap.
+    max_age: <%= 1.year.to_i %>
     max_size: <%= 256.megabytes %>
     namespace: <%= Rails.env %>
 

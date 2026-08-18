@@ -13,5 +13,9 @@ production:
   connects_to:
     database:
       writing: cable
-  polling_interval: 0.1.seconds
+  # Every subscriber polls the same database the site is served from, and the
+  # message it is waiting for is 15 to 30 seconds away. Ten polls a second buys
+  # nothing a visitor can perceive and costs it against every other query on a
+  # single small instance.
+  polling_interval: 0.5.seconds
   message_retention: 1.day

@@ -34,6 +34,8 @@ begin
 rescue ActiveRecord::PendingMigrationError => e
   abort e.to_s.strip
 end
+Rails.root.glob('spec/support/**/*.rb').sort.each { |file| require file }
+
 RSpec.configure do |config|
   # Lets specs call `create`/`build` directly instead of `FactoryBot.create`.
   config.include FactoryBot::Syntax::Methods

@@ -16,7 +16,10 @@ module Webhooks
       log_delivery(status: result.status.to_s, record: result.activity,
                    source_file: parsed.source_file)
 
-      RegenerateContentJob.perform_later(result.activity.id)
+      # New runs only. A redelivery of a payload already on file changes nothing
+      # a reader would notice, and regenerating on one would spend a model call
+      # rewriting the same summary.
+      RegenerateContentJob.perform_later(result.activity.id) if result.created?
 
       render json: { status: result.status, activity_id: result.activity.id }, status: :ok
     rescue ActiveRecord::RecordInvalid, ActiveRecord::StatementInvalid => e

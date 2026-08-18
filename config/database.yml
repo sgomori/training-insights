@@ -17,8 +17,9 @@ default: &default
   encoding: unicode
   # Puma's request threads and Solid Queue's job threads both draw from this
   # pool: jobs read and write application tables through the primary
-  # connection. Three of each saturates a pool sized to RAILS_MAX_THREADS + 3,
-  # so the headroom is the worker thread count in config/queue.yml plus two.
+  # connection. Three request threads and the four job threads across the two
+  # worker pools in config/queue.yml come to seven against a pool of
+  # RAILS_MAX_THREADS + 5, so the headroom is one connection.
   #
   # Running out is worse than slow. A request that waits out the checkout
   # timeout raises ConnectionTimeoutError, and while Webhooks::BaseController
@@ -109,11 +110,12 @@ production:
   # dispatcher, worker and scheduler are threads in the web process rather than
   # separate processes with pools of their own. They all check out of this one:
   # the supervisor's loop, heartbeat and pruning; the dispatcher's polling,
-  # heartbeat and concurrency maintenance; the worker's polling, heartbeat and
-  # three execution threads; the scheduler's loop and heartbeat. That is
-  # thirteen before any request is served, and enqueuing also happens here —
-  # Webhooks::ActivitiesController calls perform_later, so up to three request
-  # threads write solid_queue_jobs while holding a primary connection each.
+  # heartbeat and concurrency maintenance; each worker's polling, heartbeat and
+  # execution threads; the scheduler's loop and heartbeat. With two worker pools
+  # of two threads each that is sixteen before any request is served, and
+  # enqueuing also happens here — Webhooks::ActivitiesController and
+  # ChatsController both call perform_later, so up to three request threads write
+  # solid_queue_jobs while holding a primary connection each.
   #
   # Solid Queue's own sizing warning will not catch an undersized pool here: it
   # compares against worker threads plus two, which everything above clears.

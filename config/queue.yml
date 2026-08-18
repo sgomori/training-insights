@@ -3,12 +3,49 @@ default: &default
     - polling_interval: 1
       batch_size: 500
   workers:
-    - queues: "*"
-      threads: 3
+    # Queue names are a YAML list, not a comma-separated string. Solid Queue
+    # never splits on commas — Worker#initialize does Array(options[:queues]) —
+    # so "default,solid_queue_recurring" becomes a single queue name of that
+    # literal text, which matches no job ever enqueued. The worker then boots,
+    # registers, heartbeats and polls perfectly happily while claiming nothing,
+    # and nothing raises.
+    #
+    # It cannot be spotted from the outside either: Worker#metadata reports
+    # queues.join(","), so the broken and the correct config print the same
+    # string in solid_queue_processes. Jobs simply accumulate in
+    # solid_queue_ready_executions with failed=0.
+    #
+    # Named rather than "*", because the two pools below have to be disjoint: a
+    # catch-all here would take chat turns as well and defeat the split. The cost
+    # of naming them is that a queue missing from both lists is polled by
+    # neither. spec/config/queue_configuration_spec.rb holds both halves of that.
+    #
+    # solid_queue_recurring is on this list because the entries in
+    # config/recurring.yml are `command:` rather than `class:`, so each one
+    # enqueues a SolidQueue::RecurringJob on Solid Queue's own queue rather than
+    # on default. Drop it and the hourly cleanup stops pruning finished jobs and
+    # the hourly memory report goes silent — on the instance it exists to watch.
+    - queues:
+        - default
+        - solid_queue_recurring
+      threads: 2
       # JOB_CONCURRENCY only applies to `bin/jobs`. The deployment embeds Solid
       # Queue in Puma in async mode, which forces one process and ignores this
       # key — raise `threads` there, and the queue pool in config/database.yml
       # with it.
+      processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
+      polling_interval: 1
+
+    # Chat gets its own pool so a turn a visitor is waiting on does not sit
+    # behind a content regeneration that nobody is.
+    #
+    # Two threads is a ceiling as much as a capacity. Every turn in flight has
+    # the model calling back into this application's own tool endpoint, and those
+    # callbacks are inbound requests competing for three request threads. Raising
+    # this without raising those would let chat starve the site it runs on.
+    - queues:
+        - chat
+      threads: 2
       processes: <%= ENV.fetch("JOB_CONCURRENCY", 1) %>
       polling_interval: 1
 

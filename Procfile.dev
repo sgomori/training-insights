@@ -1,2 +1,9 @@
-web: bin/rails server
+# Solid Queue runs inside Puma here for the same reason it does in production,
+# plus one that only bites locally: development's Action Cable adapter is
+# `async`, which is process-local. A job broadcasting a finished chat turn from
+# a separate `bin/jobs` would reach nobody, silently.
+#
+# It has to be set here rather than in .env — Puma reads config/puma.rb before
+# Rails boots, so dotenv has not run yet.
+web: SOLID_QUEUE_IN_PUMA=true bin/rails server
 css: bin/rails tailwindcss:watch

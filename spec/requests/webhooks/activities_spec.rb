@@ -141,6 +141,14 @@ RSpec.describe "POST /webhooks/activity" do
         .to have_enqueued_job(RegenerateContentJob)
     end
 
+    # A redelivery changes nothing a reader would notice, and regeneration is a
+    # model call: it would spend one rewriting the same summary.
+    it "does not enqueue it again for a payload already on file" do
+      post_payload(payload)
+
+      expect { post_payload(payload) }.not_to have_enqueued_job(RegenerateContentJob)
+    end
+
     it "logs the delivery" do
       expect { post_payload(payload) }.to change(WebhookLog, :count).by(1)
 
