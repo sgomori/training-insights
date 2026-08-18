@@ -32,6 +32,15 @@ Conventions every aggregation in `app/mcp/` must agree on. Verified against the 
 - Steady-state cutoff for cardiac drift and "structured pacing": `pace_cv` 0.20.
 **How to apply:** a tolerance that reaches the client must be named in the same response fragment as the figure it produced. Never widen one silently — `DistanceBucket` exists so a "10k" PR and a "10k" pace progression are drawn from the same runs.
 
+**Within-activity (lap) conventions, added when `LapSegmentation` landed on `chat-surface` 2026-08-04.** These are a separate namespace from the cross-activity thresholds above — do not conflate them.
+- Reference pace for a run's own laps: the **median lap pace**, unweighted by lap distance or duration. Chosen over the mean because short recovery laps sit in the same list.
+- Classification band: `max(reference * 0.06, 10 s/km)`. The 10 s/km floor is **inert** — it only binds below 166.7 s/km (2:47/km), so the relative term wins at every pace a human runs.
+- `MINIMUM_LAPS = 3`, `MINIMUM_REPS = 3` (matches `MIN_SAMPLE_FOR_TREND`), `REP_DISTANCE_RATIO = 1.4` for "these reps are the same effort".
+- Auto-lap detection: every lap but the last within 2% of each other, last under 99% of them. No roundness check on the resulting distance, so hand-lapped equal blocks pass.
+- Three different estimators live in one `repeats` hash and none is named on the wire: `rep_pace_per_km` is distance-weighted, `rep_distance_km` and `recovery_seconds` are medians across reps.
+**Why:** a within-run band and a cross-run band answer different questions; a 6% band on one run's laps has nothing to do with the ±3% race-pace band above.
+**How to apply:** if a second within-activity tool appears, it must classify against the same median-plus-band or say why not. Whichever estimator a field uses has to be named in the fragment carrying it, same rule as the tolerance bands.
+
 **Foster's monotony uses population SD here** (`MetricMath#standard_deviation`, n not n−1), pinned by spec to 0.87 for daily load 100/0/100/0/100/0/0.
 **Why:** the code argues the seven days of a week are the whole population.
 **How to apply:** this inflates monotony by sqrt(7/6) ≈ 8% against the published 1.5/2.0 bands, which come from literature computed with sample SD. If the bands or the SD ever change, they have to change together.

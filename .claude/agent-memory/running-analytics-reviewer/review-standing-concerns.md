@@ -19,4 +19,10 @@ The arithmetic in `app/mcp/` is unusually careful: nil handling, duration-weight
 **4. A `MetricInterpretation` definition can exist and never be wired up.** `long_run_pct_of_race_distance` is defined with the guidance that makes the figure readable and is used by no tool.
 **How to apply:** when reviewing, diff `DEFINITIONS.keys` against actual `describe(` call sites.
 
+**5. A reference statistic is chosen for robustness without checking where it lands on a bimodal sample.** `LapSegmentation` picks the median lap pace to resist short recoveries, which is right — but on an interval session lap paces are bimodal and the median lands *inside the recovery cluster*, so every recovery classifies as `steady` and the rep detection, which requires an `easier` connector, never fires. The spec passes because its one worked example uses a walk-pace recovery, the narrow case where the median lands elsewhere.
+**How to apply:** whenever a reference is a median, mean or quantile over a sample the tool itself expects to be multi-modal, sweep the parameter that moves the modes apart and check the classification at each step rather than testing one example. Ask which cluster the statistic sits in, not just whether it is robust.
+
+**6. Unweighted means over unequal-length laps.** The duration weighting that the cross-activity tools get right (zone distributions, weighted pace) is missed at lap level: a phase's `average_heart_rate` is a plain mean of per-lap averages, so a 200 m float counts as much as the kilometre beside it.
+**How to apply:** any mean over laps needs `Σ(value × duration) / Σ(duration)` over the laps that actually carried the value, and the count of contributing laps reported alongside — laps are far less uniform in length than activities are.
+
 Definitions of the conventions themselves: [[analytical-conventions]]
