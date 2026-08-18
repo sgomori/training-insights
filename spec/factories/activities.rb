@@ -48,6 +48,18 @@ FactoryBot.define do
     end
   end
 
+  # One lap as the watch recorded it. Distance and duration are what the
+  # segmentation runs on; pace is derived from them by default so a lap cannot
+  # be built that contradicts itself.
+  factory :activity_lap do
+    activity
+    sequence(:lap_index) { |n| n }
+    distance_meters { 1_000.0 }
+    duration_seconds { 360.0 }
+    average_pace_per_km { duration_seconds / (distance_meters / 1000.0) }
+    average_heart_rate { 145 }
+  end
+
   factory :runner do
     name { "Steve Gomori" }
     timezone { "America/Toronto" }

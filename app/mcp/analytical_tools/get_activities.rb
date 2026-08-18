@@ -9,8 +9,9 @@ module AnalyticalTools
   # response says how much of the matching set it is showing so a truncated view
   # is never mistaken for the whole one.
   #
-  # Curated columns only. No streams, no laps, and no GPS — the schema has no
-  # column to hold a route, so there is nothing here to leak.
+  # Curated columns only. No streams and no GPS — the schema has no column to
+  # hold a route, so there is nothing here to leak. Laps are describe_run's
+  # business: a list of efforts is the wrong place to unfold one of them.
   class GetActivities < AnalyticalTool
     tool_name "get_activities"
 
@@ -22,8 +23,9 @@ module AnalyticalTools
       reach for this one when you need the specific efforts behind a figure.
       Filter by date range, activity type, distance range or races only. Always
       reports how many activities matched against how many were returned, so a
-      truncated result is visible rather than silent. Streams, laps and route data
-      are not available through any tool.
+      truncated result is visible rather than silent. Streams and route data are
+      not available through any tool; for what happened inside one of these
+      efforts, use describe_run.
     TEXT
 
     input_schema(

@@ -4,7 +4,7 @@ This document defines what's in v1, what's deferred, and the explicit non-goals.
 
 ## The three things v1 must deliver
 
-1. **An MCP server with well-designed analytical tools.** The central engineering work. 5-8 high-level tools with opinionated data shaping, plus 2-3 mid-level escape hatches. The tool design encodes running domain expertise and is the project's primary differentiator.
+1. **An MCP server with well-designed analytical tools.** The central engineering work. 5-8 high-level tools with opinionated data shaping, plus 2-3 mid-level escape hatches. Seven high-level tools and three escape hatches shipped. The tool design encodes running domain expertise and is the project's primary differentiator.
 
 2. **The canonical instance running publicly with real training data.** Deployed to `training.stevegomori.ca`, populated with historical activity data from Garmin FIT files, displaying pre-generated content and supporting chat interactions.
 
@@ -35,6 +35,7 @@ If v1 ships with these three things working well, it's a success.
   - `get_training_block_summary`
   - `suggest_next_run`
   - `get_recent_activity_summary`
+  - `describe_run`
   - `get_activities` (escape hatch)
   - `get_personal_records` (escape hatch)
   - `compare_periods` (escape hatch)

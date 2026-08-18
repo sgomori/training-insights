@@ -234,7 +234,7 @@ RSpec.describe AnalyticalTools::GetRaceReadiness do
       run_on("2026-06-01", avg_grade_adjusted_pace_per_km: 400.0)
 
       expect(payload[:race_pace_work][:basis]).to match(/race-pace finish does not count/)
-      expect(payload[:notable]).to include(a_string_matching(/race-pace segments inside longer runs are invisible/))
+      expect(payload[:notable]).to include(a_string_matching(/goal-pace block inside a longer run is invisible/))
     end
   end
 

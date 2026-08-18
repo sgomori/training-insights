@@ -533,7 +533,9 @@ module AnalyticalTools
 
         [ "No training effort in the buildup averaged within " \
           "#{(RACE_PACE_TOLERANCE * 100).round}% of the #{goal}s/km goal pace. Note this counts whole " \
-          "activities only, so race-pace segments inside longer runs are invisible to it." ]
+          "activities only, so a goal-pace block inside a longer run is invisible to it. The buildup's " \
+          "longer runs are the place to look, and describe_run will show a block inside one where the " \
+          "laps recorded it." ]
       end
 
       def past_buildup_signals(target, races)

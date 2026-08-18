@@ -15,7 +15,8 @@ RSpec.describe ToolRegistry do
         "get_pace_progression",
         "get_personal_records",
         "get_race_readiness",
-        "suggest_next_run"
+        "suggest_next_run",
+        "describe_run"
       )
     end
 

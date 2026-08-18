@@ -12,7 +12,8 @@ module ToolRegistry
     AnalyticalTools::GetPaceProgression,
     AnalyticalTools::GetPersonalRecords,
     AnalyticalTools::GetRaceReadiness,
-    AnalyticalTools::SuggestNextRun
+    AnalyticalTools::SuggestNextRun,
+    AnalyticalTools::DescribeRun
   ].freeze
 
   SERVER_NAME = "training-insights"
@@ -62,6 +63,12 @@ module ToolRegistry
     No route or GPS data exists anywhere in this server, and no tool reads into
     an activity's raw streams. Anything phrased as a best segment within a run —
     a fastest 5k inside a longer effort, for instance — cannot be answered.
+    What a single run looked like from the inside can be. describe_run groups one
+    activity's recorded laps into phases — a warmup, a set of repetitions, a
+    steady stretch, a cooldown — and reports each phase's distance, pace and
+    heart rate, along with the per-rep paces of a set. Individual lap splits are
+    not returned, so a single fastest kilometre still cannot be quoted, and the
+    response says which lap basis it had.
 
     Report in prose, in the third person — this is one runner's history, and the
     reader is usually not that runner. Prefer the reading a band label already
