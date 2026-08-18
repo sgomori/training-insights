@@ -84,7 +84,7 @@ Content-Type: application/json
 
 **Expected payload shape:**
 
-> The authoritative contract is `fit-pipeline/docs/payload_schema.md`, which the
+> The authoritative contract is [fit-pipeline's `docs/payload_schema.md`](https://github.com/sgomori/fit-pipeline/blob/main/docs/payload_schema.md), which the
 > sender is built from. The example below is kept in sync with it; where the two
 > disagree, the pipeline's document wins.
 
@@ -465,7 +465,7 @@ Domain: `training.stevegomori.ca`
 
 ## Self-hosting model
 
-The project is open source (private repo during initial development, public when the codebase represents the project well).
+The project is open source under the MIT license.
 
 A self-hoster:
 
@@ -480,7 +480,7 @@ No third-party API registrations required.
 
 ## Relationship to fit-pipeline
 
-The Python pipeline project (separate repo: fit-pipeline) is the canonical data sender for activity data. It parses Garmin FIT files, computes analytical metrics, and POSTs structured JSON to a configurable webhook URL.
+The Python pipeline project ([separate repo](https://github.com/sgomori/fit-pipeline)) is the canonical data sender for activity data. It parses Garmin FIT files, computes analytical metrics, and POSTs structured JSON to a configurable webhook URL.
 
 Training Insights treats it as one possible sender. The webhook payload shape and authentication mechanism are the integration contract. Changes to the payload shape are breaking changes and should be handled carefully across both repos.
 

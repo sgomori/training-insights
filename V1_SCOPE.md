@@ -120,7 +120,7 @@ There is no hard timeline. The expectation is that this is the immediate priorit
 
 ## Repository visibility
 
-The repository is private during initial development. It will be made public when Steve wants to reference it in a job application — that's the trigger, whatever state the project is in at that point.
+The repository is public under the MIT license, as is the companion fit-pipeline project. The n8n workflow repository stays private while it is still in active development.
 
 ## When v1 is "done"
 

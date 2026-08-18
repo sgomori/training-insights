@@ -66,7 +66,7 @@ The project is designed to be self-hostable. A self-hoster provides:
 
 Data arrives via the companion fit-pipeline project, which handles FIT file parsing and webhook delivery. No third-party API registrations are required — data flows from the runner's own Garmin Connect exports.
 
-Detailed deployment instructions will be added once v1 is complete.
+A step-by-step self-hosting guide is still to be written. In the meantime, `.env.example` documents every variable a deployment sets, local and production alike, and `render.yaml` shows the canonical deployment those settings came from — one web service plus managed PostgreSQL.
 
 ## Local development
 
@@ -113,13 +113,15 @@ Chat answers arrive over Action Cable rather than in the response to the request
 
 ## Project status
 
-Early development. v1 in progress. The repository is currently private and will be made public when the codebase represents the project well.
+Active and ongoing. The canonical instance runs at [training.stevegomori.ca](https://training.stevegomori.ca) against real Garmin data. The webhook ingestion path, the analytical tool layer, the MCP server, and the web frontend with its chat surface and standing summary are all live.
+
+Work continues. Some v1 deliverables are still outstanding — a TypeScript MCP client example and a self-hosting guide — and health metric ingestion waits on its n8n workflow. Beyond v1, tools get added and existing ones reshaped as questions come up that the current analytical surface answers poorly. The tool inventory and response shapes should be expected to change.
 
 ## Related projects
 
-- [fit-pipeline](link-tbd) — the Python FIT file parser and analytical engine that delivers structured activity data to this application's activity webhook endpoint
-- [training-insights-n8n](link-tbd) — n8n workflow definitions for automating pipeline execution and health metric ingestion
+- [fit-pipeline](https://github.com/sgomori/fit-pipeline) — the Python FIT file parser and analytical engine that delivers structured activity data to this application's activity webhook endpoint
+- training-insights-n8n — n8n workflow definitions for automating pipeline execution and health metric ingestion. Still in active development and not yet public.
 
 ## License
 
-To be determined before the repository is made public.
+Released under the [MIT License](LICENSE).

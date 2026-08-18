@@ -8,7 +8,7 @@ This file provides guidance to Claude Code when working on this repository. Read
 
 Training Insights is an MCP server for Garmin training data with a single-runner Rails web frontend. See `README.md` for the public description, `TECHNICAL_SPEC.md` for architecture details, and `V1_SCOPE.md` for what's in v1 versus what's deferred.
 
-Activity data arrives via an authenticated webhook from the companion `fit-pipeline` project, which parses Garmin FIT files and computes the analytical metrics. Health metrics arrive via a second webhook fed by Garmin CSV exports through n8n. The integration contract is `../fit-pipeline/docs/payload_schema.md` — that document, not the example in `TECHNICAL_SPEC.md`, is authoritative on payload shape.
+Activity data arrives via an authenticated webhook from the companion `fit-pipeline` project, which parses Garmin FIT files and computes the analytical metrics. Health metrics arrive via a second webhook fed by Garmin CSV exports through n8n. The integration contract is [fit-pipeline's `docs/payload_schema.md`](https://github.com/sgomori/fit-pipeline/blob/main/docs/payload_schema.md), available locally at `../fit-pipeline/docs/payload_schema.md` — that document, not the example in `TECHNICAL_SPEC.md`, is authoritative on payload shape.
 
 ## Core architectural principles
 
