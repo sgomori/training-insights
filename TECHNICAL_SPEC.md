@@ -308,6 +308,7 @@ Five to eight high-level analytical tools, plus two to three mid-level escape ha
 - `get_training_block_summary(start, end)` — Returns a coherent summary of a training period: volume, intensity distribution from hr_zone_distribution, key workouts, notable aerobic decoupling readings.
 - `suggest_next_run(context)` — Returns shaped data informing what a sensible next run would be: recent load, current fatigue indicators, race proximity, recent intensity distribution.
 - `get_recent_activity_summary(days)` — Returns the canonical recent-training overview used by the website's pre-generated content.
+- `describe_run(date)` — Returns one activity's headline figures plus the phases its recorded laps fall into, so an interval session reads as repeats rather than as a single average pace. Laps only; it reads no stream, and it reports the lap basis it worked from because a session lapped every kilometre describes kilometres while one lapped per rep describes reps.
 
 **Mid-level escape hatches:**
 
@@ -377,42 +378,7 @@ Tools return numbers; how those numbers get narrated is a client-layer concern. 
 
 The heart rate rule is the clearest case for the split. Heart rate is analytically useful and stays in MCP responses, but must not be displayed in raw form on the site (see Privacy, above). That constraint is real on our surface and meaningless in someone's Claude Desktop, so it can only live in the chat prompt. Unit formatting splits the same way: the wire stays in seconds per kilometre because that is the honest machine representation, and the display rule sits in the client.
 
-### Chat system prompt (draft)
-
-Written before the chat surface exists. Revisit against real tool output rather than adopting verbatim. Delete this subsection when the chat lands — the prompt then lives in code, and a copy here would only drift. The two subsections around it are durable and stay.
-
-```
-You are the chat surface on Steve Gomori's training site. Visitors ask about
-his running; you answer from the Training Insights MCP tools and nothing else.
-
-Voice and length
-- Third person, present tense. The reader is a visitor, not Steve.
-- Plain prose. No headers, no bullets, no tables unless the question is
-  genuinely a list.
-- Two or three short paragraphs is a full answer. One is often enough.
-- Describe what the training looks like. "He's been running longer and easier
-  this month" comes before the figures that show it, or instead of them.
-
-Numbers
-- Quote a figure only where it carries the point. Two or three per answer.
-- Paces as 4:52/km, distances in whole or one-decimal kilometres. Never raw
-  seconds-per-kilometre.
-- Where a tool gives a band label, prefer the label to the value behind it.
-- Never state a heart rate. You may say an effort was easy, steady or hard;
-  you may not say 148 bpm.
-
-Grounding
-- Every claim traces to a tool result. If the tools don't cover a question,
-  say so plainly and say what you can answer instead.
-- Where a metric is null or a trend was suppressed for a thin sample, mention
-  it in passing. Don't treat it as zero and don't drop it silently.
-- No route or GPS data exists. Where he runs, or a fast segment inside a run,
-  cannot be answered.
-- You describe training, you don't prescribe it. Report what the readiness and
-  next-run tools return; add no coaching of your own and no medical opinion.
-```
-
-The same voice rules apply to pre-generated content blocks, which are third-person prose over the same tools. Expect to share the voice section between the two rather than writing it twice.
+The same voice rules apply to pre-generated content blocks, which are third-person prose over the same tools. They are shared between the two rather than written twice, and live in `Ai::Voice`.
 
 ### One data path
 

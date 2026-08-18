@@ -131,7 +131,9 @@ When in doubt about exposing a field, err toward not exposing.
 | MCP transport | Streamable HTTP, mounted **stateless**. The HTTP/SSE transport named in the original spec is deprecated. Stateless mode avoids the official SDK's in-memory session state, which would otherwise force a single process. |
 | MCP implementation | The official `mcp` Ruby gem, not hand-rolled |
 | Background jobs | Solid Queue, embedded in Puma via the plugin, in **async** mode. Fork mode ran a supervisor, dispatcher, worker and scheduler as separate processes, which cost more than a 512MB instance had to give. Async runs them as threads in the web process. The `processes` key in `config/queue.yml` is ignored as a result — scale with threads. |
-| ActivityStream storage | PostgreSQL array columns, one row per activity — not timestamped rows. No tool queries *into* a stream; they aggregate whole streams. |
+| ActivityStream storage | PostgreSQL array columns, one row per activity — not timestamped rows. No tool queries *into* a stream; they aggregate whole streams. Laps are a separate normalised table and are not covered by this: `describe_run` reads them. |
+| Website chat turns | Independent. Each question goes to the API on its own, with no history, which is what makes an answer cacheable on the question text. The transcript on the page is visual only. A follow-up that depends on an earlier question cannot resolve, and the prompt tells the model to say so. |
+| Cache warming | The standing summary regenerates on ingestion, because it is on every page load. Individual answers cache lazily on first ask — most run-days have no visitor, so warming them eagerly would spend a model call per suggested question per run to save one visitor a wait. |
 | Activity idempotency key | `[source, started_at]`. The payload carries no stable source ID and `file` can be reused. |
 | Deployment | Render — Starter web service plus Basic-1gb managed PostgreSQL. Fly.io was the original preference; its managed Postgres now starts at $38/mo, roughly double the alternative. |
 | Website chat → tools | The Anthropic MCP connector pointed at the public `/mcp` URL. Note this means chat cannot run against localhost without a tunnel. |
@@ -142,7 +144,7 @@ Deliberately unresolved. Surface them rather than choosing silently.
 
 | Decision | State |
 |---|---|
-| Activity type scoping | Every aggregating tool counts all activity types; only `get_activities` filters on one. Invisible on a running-only corpus and silently wrong the first time a ride or a swim is ingested — it will enter volume, load and zone aggregates, and `get_personal_records` will offer a 10km ride as a 10k record. Decide before the first non-run arrives. |
+| Activity type scoping | Every aggregating tool counts all activity types; only `get_activities` filters on one. Invisible on a running-only corpus and silently wrong the first time a ride or a swim is ingested — it will enter volume, load and zone aggregates, and `get_personal_records` will offer a 10km ride as a 10k record. `describe_run` is unaffected: it describes one named activity and reports the type it found. Decide before the first non-run arrives. |
 | MCP Resources and Prompts | Both capabilities are advertised and unused. A Resource carrying the methodology behind the metrics, and Prompts for the common questions, would strengthen the demo. Neither is in `V1_SCOPE.md`, so both need a scope decision rather than a quiet addition. |
 | `races:sync` on deploy | Not wired into `bin/render-build.sh`, deliberately. Revisit once the race calendar stabilises. |
 

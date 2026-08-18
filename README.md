@@ -17,7 +17,7 @@ The MCP server is the primary architectural artifact. The Rails application hous
 - An authenticated webhook endpoint that receives structured activity data from the data pipeline
 - A normalized PostgreSQL schema storing activities, computed metrics, and time-series streams
 - The MCP server, exposing analytical tools over Streamable HTTP transport
-- A web frontend that consumes the MCP server for its AI-powered display
+- A web frontend that reaches the same analytical tools through the Anthropic API's MCP connector, with a chat surface and a standing summary of recent training
 - Pre-generated content cached and regenerated on new activity ingestion
 
 Activity data originates from Garmin FIT files processed by a companion Python project (fit-pipeline), which parses FIT files, computes analytical metrics, and delivers structured JSON to the activity webhook endpoint. Health metrics (sleep, HRV, weight, resting HR) arrive via a separate webhook endpoint, driven by Garmin CSV exports processed through n8n. The Rails app is source-agnostic — it receives and stores structured payloads regardless of where they originated.
@@ -100,7 +100,7 @@ curl -s http://localhost:3000/mcp \
 
 The transport rejects unrecognised `Host` headers as DNS rebinding protection. Loopback hosts are trusted automatically; any other hostname must be listed in `MCP_ALLOWED_HOSTS`.
 
-### A note on the chat feature in development
+### A note on running the chat in development
 
 The website's chat reaches the analytical tools through the Anthropic API's MCP connector, which calls the MCP server over the public internet. That means **chat cannot run against `localhost`**. Two options in development:
 
@@ -108,6 +108,8 @@ The website's chat reaches the analytical tools through the Anthropic API's MCP 
 - Expose the local server through a tunnel (`cloudflared tunnel --url http://localhost:3000`) and set `MCP_SERVER_URL` and `MCP_ALLOWED_HOSTS` to the tunnel hostname.
 
 Everything else — ingestion, the MCP server itself, and the tools — runs entirely locally.
+
+Chat answers arrive over Action Cable rather than in the response to the request that asked, so `bin/dev` runs Solid Queue inside Puma: development's cable adapter is process-local, and a job broadcasting from a separate `bin/jobs` would reach nobody.
 
 ## Project status
 
