@@ -5,8 +5,28 @@ updates:
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  groups:
+    # Grouping applies to version updates only, so a security advisory still
+    # arrives as its own PR rather than buried in a batch.
+    dev-and-test:
+      dependency-type: development
+    runtime:
+      dependency-type: production
+      # These carry decisions recorded in CLAUDE.md, so they arrive
+      # individually and get read rather than merged on a green tick.
+      exclude-patterns:
+      - rails
+      - pg
+      - puma
+      - solid_queue
+      - mcp
+      - anthropic
 - package-ecosystem: github-actions
   directory: "/"
   schedule:
     interval: weekly
   open-pull-requests-limit: 10
+  groups:
+    actions:
+      patterns:
+      - "*"

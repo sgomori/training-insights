@@ -122,6 +122,45 @@ When in doubt about exposing a field, err toward not exposing.
   - Background job behavior
 - View and integration tests where reasonable but not exhaustive
 
+## Dependency updates
+
+Dependabot opens PRs weekly, grouped by `.github/dependabot.yml`. CI runs the
+full suite on every one, so the test result rather than the changelog is the
+default gate.
+
+| Tier | What | Handling |
+|---|---|---|
+| `dev-and-test` group | RSpec, RuboCop, Brakeman, bundler-audit, FactoryBot, Faker | Merge on green |
+| `runtime` group | Production gems carrying no recorded decision | Confirm the lockfile diff matches the title, then merge on green |
+| Individual PRs | `rails`, `pg`, `puma`, `solid_queue`, `mcp`, `anthropic` | Read the changelog against this file before merging |
+| Any Gemfile edit | A PR changing a version constraint, not just the lock | A ceiling is being widened — that is a decision, not an upgrade |
+
+Grouping applies to version updates only, so a security advisory still arrives
+as its own PR.
+
+Two gems carry deliberate ceilings:
+
+- `mcp` at `~> 1.1.0`. 1.2.0 reworks the sessionless Streamable HTTP path under
+  SEP-2575 and stops negotiating protocol versions through `initialize`. The
+  website chat reaches the tools through the Anthropic connector on the public
+  `/mcp` URL and no test covers that wire, so verify against the live connector
+  before widening.
+- `anthropic` at `~> 1.65.0`, so a change to refusal or fallback behaviour on
+  the visitor-facing path arrives as a reviewable PR.
+
+Mechanics that repay the keystrokes:
+
+- Judge a branch by `git diff $(git merge-base main <branch>)..<branch>`. A
+  tip-to-tip diff against main renders every commit the branch lacks as a
+  reversion, which reads as catastrophic and is not.
+- Read the lockfile diff, not the PR title. A bump titled for one gem routinely
+  moves several.
+- Run `bundle exec bundler-audit update` before trusting a local audit. CI
+  clones the advisory database fresh; a stale local copy reports clean against
+  advisories CI can already see.
+- Check for an open Dependabot PR before bumping a gem by hand, or the manual
+  commit and the PR duplicate each other.
+
 ## Resolved implementation decisions
 
 `TECHNICAL_SPEC.md` left several decisions open. These are now settled — don't re-litigate them without a reason:
