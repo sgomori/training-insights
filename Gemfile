@@ -33,11 +33,13 @@ gem "bootsnap", require: false
 
 # Official Ruby SDK for the Model Context Protocol — powers the analytical tool server
 #
-# Held below 1.2.0 deliberately. That release reworks the sessionless Streamable
-# HTTP path under SEP-2575 and changes protocol era negotiation, which the
-# Anthropic connector pointed at /mcp depends on. Verify against the live
-# connector before widening this.
-gem "mcp", "~> 1.1.0"
+# Held to 1.2.x. 1.2.0 reworks the sessionless Streamable HTTP path under
+# SEP-2575, but the legacy path the Anthropic connector negotiates is unchanged:
+# initialize, tools/list and tools/call were diffed against 1.1.0 over the
+# mounted endpoint and came back identical. A client asking for a modern
+# protocol version through initialize now receives 2025-11-25 rather than an
+# error, so that path degrades instead of breaking. 1.3.0 is unverified.
+gem "mcp", "~> 1.2.0"
 
 # Anthropic API client for the website's chat and pre-generated content
 #

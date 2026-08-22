@@ -140,11 +140,11 @@ as its own PR.
 
 Two gems carry deliberate ceilings:
 
-- `mcp` at `~> 1.1.0`. 1.2.0 reworks the sessionless Streamable HTTP path under
-  SEP-2575 and stops negotiating protocol versions through `initialize`. The
-  website chat reaches the tools through the Anthropic connector on the public
-  `/mcp` URL and no test covers that wire, so verify against the live connector
-  before widening.
+- `mcp` at `~> 1.2.0`. The SEP-2575 rework in 1.2.0 leaves the legacy path the
+  Anthropic connector negotiates byte-identical, confirmed by diffing
+  `initialize`, `tools/list` and `tools/call` over the mounted endpoint against
+  1.1.0. Widening past 1.2.x needs the same check: no test covers that wire,
+  because the connector reaches the tools over the public `/mcp` URL.
 - `anthropic` at `~> 1.65.0`, so a change to refusal or fallback behaviour on
   the visitor-facing path arrives as a reviewable PR.
 
