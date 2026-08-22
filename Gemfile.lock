@@ -75,10 +75,11 @@ GEM
       securerandom (>= 0.3)
       tzinfo (~> 2.0, >= 2.0.5)
       uri (>= 0.13.1)
-    anthropic (1.59.0)
-      cgi
-      connection_pool
-      standardwebhooks
+    anthropic (1.62.0)
+      base64 (~> 0.1)
+      cgi (~> 0.1)
+      connection_pool (>= 2, < 4)
+      standardwebhooks (~> 1.0)
     ast (2.4.3)
     base64 (0.3.0)
     bigdecimal (4.1.2)
