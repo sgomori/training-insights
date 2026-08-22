@@ -37,7 +37,7 @@ gem "bootsnap", require: false
 # HTTP path under SEP-2575 and changes protocol era negotiation, which the
 # Anthropic connector pointed at /mcp depends on. Verify against the live
 # connector before widening this.
-gem "mcp", "~> 1.1.0"
+gem "mcp", "~> 1.2.0"
 
 # Anthropic API client for the website's chat and pre-generated content
 #
