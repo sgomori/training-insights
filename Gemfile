@@ -32,7 +32,12 @@ gem "solid_cable"
 gem "bootsnap", require: false
 
 # Official Ruby SDK for the Model Context Protocol — powers the analytical tool server
-gem "mcp", "~> 1.0"
+#
+# Held below 1.2.0 deliberately. That release reworks the sessionless Streamable
+# HTTP path under SEP-2575 and changes protocol era negotiation, which the
+# Anthropic connector pointed at /mcp depends on. Verify against the live
+# connector before widening this.
+gem "mcp", "~> 1.1.0"
 
 # Anthropic API client for the website's chat and pre-generated content
 gem "anthropic"
