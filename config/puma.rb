@@ -39,9 +39,19 @@ plugin :tmp_restart
 # `fork`, the plugin's default, forks a process per configured worker,
 # dispatcher and scheduler — four children beside Puma, each carrying its own
 # copy of the eager-loaded application. Copy-on-write shares those pages at
-# first, but Ruby's GC writes mark bits into object headers, so the children
-# drift toward independent heaps over a few hours. That is what reached the
-# 512MB ceiling with no traffic at all on 2026-08-03.
+# first, but a child that runs the GC stops sharing them: marking touches
+# bitmaps, page headers and generational bookkeeping spread across the heap,
+# and every page touched becomes a private copy. Measured on Ruby 3.4.10, a
+# full mark in a forked child privatises 10-35% of the live heap per cycle
+# depending on object shape, with no allocation of its own. Four children
+# drift toward four independent heaps over a few hours, which is what reached
+# the 512MB ceiling with no traffic at all on 2026-08-03.
+#
+# Not, as this comment said until 2026-08-27, because mark bits live in object
+# headers. They have not since Ruby 2.0 — `GC::INTERNAL_CONSTANTS` reports a
+# `HEAP_PAGE_BITMAP_SIZE` of 208 bytes, one bit per slot, held per page and
+# away from the objects. The conclusion held; the stated cause did not, and it
+# is the kind of claim that gets repeated in an interview.
 #
 # `async` runs the same roles as threads here instead. Solid Queue reserves it
 # for callers with a specific reason; being memory-bound is that reason. Two
