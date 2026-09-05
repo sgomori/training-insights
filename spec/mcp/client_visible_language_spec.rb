@@ -59,6 +59,7 @@ RSpec.describe "language visible outside this application" do
           Rails.root.join("app/mcp/metric_interpretation.rb").to_s,
           Rails.root.join("app/mcp/training_window.rb").to_s,
           Rails.root.join("app/mcp/training_context.rb").to_s,
+          Rails.root.join("app/mcp/empty_day.rb").to_s,
           Rails.root.join("app/mcp/lap_segmentation.rb").to_s ]
     ).freeze
 
@@ -93,8 +94,8 @@ RSpec.describe "language visible outside this application" do
   # model is actually given.
   describe "the prompts behind the site's own chat" do
     it "describes analysis rather than implementation" do
-      found = offences(Ai::ChatPrompt.for("Steve Gomori"), "the chat prompt") +
-              offences(Ai::ContentPrompt.for("Steve Gomori"), "the content prompt") +
+      found = offences(Ai::ChatPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5)), "the chat prompt") +
+              offences(Ai::ContentPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5)), "the content prompt") +
               offences(Ai::ContentPrompt.request, "the content request") +
               offences(Ai::Voice.rules("Steve Gomori"), "the voice rules")
 
@@ -106,8 +107,17 @@ RSpec.describe "language visible outside this application" do
     it "gives both prompts the same voice" do
       rules = Ai::Voice.rules("Steve Gomori")
 
-      expect(Ai::ChatPrompt.for("Steve Gomori")).to include(rules)
-      expect(Ai::ContentPrompt.for("Steve Gomori")).to include(rules)
+      expect(Ai::ChatPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5))).to include(rules)
+      expect(Ai::ContentPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5))).to include(rules)
+    end
+
+    # Both prompts read dates against the same day, so neither can resolve "the
+    # run on 30 August" to a year the other would not.
+    it "anchors both prompts to the same day" do
+      anchor = Ai::DateAnchor.for(Date.new(2026, 9, 5))
+
+      expect(Ai::ChatPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5))).to include(anchor)
+      expect(Ai::ContentPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5))).to include(anchor)
     end
 
     # The one constraint that is real on this surface and meaningless in someone

@@ -72,8 +72,8 @@ RSpec.describe "the AI services' isolation from the database" do
   it "issues no queries when a prompt is built" do
     create(:runner)
 
-    expect(queries_during { Ai::ChatPrompt.for("Steve Gomori") }).to be_empty
-    expect(queries_during { Ai::ContentPrompt.for("Steve Gomori") }).to be_empty
+    expect(queries_during { Ai::ChatPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5)) }).to be_empty
+    expect(queries_during { Ai::ContentPrompt.for("Steve Gomori", today: Date.new(2026, 9, 5)) }).to be_empty
   end
 
   it "issues no queries when a question is answered" do
@@ -81,7 +81,7 @@ RSpec.describe "the AI services' isolation from the database" do
     create(:activity)
 
     queries = queries_during do
-      Ai::Chat.call(question: "How is his buildup going?", runner_name: "Steve Gomori", client: stub)
+      Ai::Chat.call(question: "How is his buildup going?", runner_name: "Steve Gomori", today: Date.new(2026, 9, 5), client: stub)
     end
 
     expect(queries).to be_empty
@@ -91,6 +91,6 @@ RSpec.describe "the AI services' isolation from the database" do
     create(:runner)
     create(:activity)
 
-    expect(queries_during { Ai::Content.call(runner_name: "Steve Gomori", client: stub) }).to be_empty
+    expect(queries_during { Ai::Content.call(runner_name: "Steve Gomori", today: Date.new(2026, 9, 5), client: stub) }).to be_empty
   end
 end

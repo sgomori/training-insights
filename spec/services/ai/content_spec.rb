@@ -2,9 +2,10 @@ require "rails_helper"
 
 RSpec.describe Ai::Content do
   let(:client) { instance_double(Ai::Client, answer: "Volume has been climbing since May.") }
+  let(:today) { Date.new(2026, 9, 5) }
 
   def generate(runner_name: "Steve Gomori")
-    described_class.call(runner_name: runner_name, client: client)
+    described_class.call(runner_name: runner_name, today: today, client: client)
   end
 
   it "returns the summary" do
@@ -14,7 +15,15 @@ RSpec.describe Ai::Content do
   it "writes under the content prompt" do
     generate
 
-    expect(client).to have_received(:answer).with(hash_including(system: Ai::ContentPrompt.for("Steve Gomori")))
+    expect(client).to have_received(:answer).with(hash_including(system: Ai::ContentPrompt.for("Steve Gomori", today: today)))
+  end
+
+  # "The last few weeks" has to count back from somewhere, and the tools'
+  # own as_of only arrives after the model has decided what to ask them.
+  it "dates the prompt from the day it was given" do
+    generate
+
+    expect(client).to have_received(:answer).with(hash_including(system: a_string_including("Today is Saturday 5 September 2026")))
   end
 
   # The activity that triggered a regeneration is a signal and a cache key, never

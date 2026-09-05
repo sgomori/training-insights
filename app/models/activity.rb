@@ -21,6 +21,7 @@ class Activity < ApplicationRecord
   scope :chronological, -> { order(:started_at) }
   scope :most_recent_first, -> { order(started_at: :desc) }
   scope :starting_between, ->(from, to) { where(started_at: from..to) }
+  scope :on_day, ->(date, zone) { starting_between(zone.parse(date.to_s).beginning_of_day, zone.parse(date.to_s).end_of_day) }
   scope :of_type, ->(type) { where(activity_type: type) }
 
   # Computed metrics the pipeline could not derive are null, not zero. Scope to

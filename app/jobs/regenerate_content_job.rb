@@ -22,7 +22,9 @@ class RegenerateContentJob < ApplicationJob
   def perform(activity_id)
     return if Activity.find_by(id: activity_id).nil?
 
-    Answers::Cache.write_content(Ai::Content.call(runner_name: Runner.current&.name))
+    Answers::Cache.write_content(
+      Ai::Content.call(runner_name: Runner.current&.name, today: Runner.current_time_zone.today)
+    )
   rescue Ai::Client::Error => e
     # The previous summary stays in place and stays readable; it is only out of
     # date by one run. Blanking it would be the worse failure.

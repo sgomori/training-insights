@@ -20,7 +20,10 @@ class ChatJob < ApplicationJob
   def perform(question, turn_id)
     turn = ChatTurn.new(question: question, id: turn_id)
 
-    answer = Ai::Chat.call(question: question, runner_name: Runner.current&.name)
+    # Today in the runner's zone, so the prompt states its date in the same zone
+    # the tools bound their days by.
+    answer = Ai::Chat.call(question: question, runner_name: Runner.current&.name,
+                           today: Runner.current_time_zone.today)
     Answers::Cache.write_answer(question, answer)
     deliver(turn, answer)
   rescue Ai::Client::Refused => e

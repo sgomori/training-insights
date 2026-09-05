@@ -37,6 +37,15 @@ RSpec.describe RegenerateContentJob do
     expect(Ai::Content).not_to have_received(:call)
   end
 
+  it "tells the model what day it is where the runner is" do
+    allow(Ai::Content).to receive(:call).and_return("Volume has been climbing since May.")
+    Runner.current.update!(timezone: "Pacific/Auckland")
+
+    travel_to(Time.utc(2026, 9, 5, 20, 0, 0)) { run }
+
+    expect(Ai::Content).to have_received(:call).with(hash_including(today: Date.new(2026, 9, 6)))
+  end
+
   it "passes the model no training data" do
     allow(Ai::Content).to receive(:call).and_return("Volume has been climbing.")
 

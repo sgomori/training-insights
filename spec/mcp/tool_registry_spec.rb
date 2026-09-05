@@ -56,6 +56,13 @@ RSpec.describe ToolRegistry do
       expect(described_class::INSTRUCTIONS).to match(/Race efforts count fully/)
     end
 
+    # A client that does not know the date fills in a year from habit. The
+    # rule for a year-less date has to reach it before it makes the call.
+    it "says how to read a date given without a year" do
+      expect(described_class::INSTRUCTIONS).to match(/carries as_of/)
+      expect(described_class::INSTRUCTIONS).to match(/most recent occurrence on or before/)
+    end
+
     # The privacy guarantee is structural — the schema has no column for a route.
     # Saying so up front stops a client asking for what cannot exist.
     it "states that no route data and no stream access exist" do

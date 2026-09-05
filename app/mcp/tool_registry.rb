@@ -48,6 +48,11 @@ module ToolRegistry
     recent race, which depresses the fortnight after it for reasons unrelated to
     fitness.
 
+    Every training_context block carries as_of: today's date in the runner's
+    timezone. A date argument always needs the year. Where a question names a
+    day without one, resolve it to its most recent occurrence on or before
+    as_of before calling, and say which day you took it to be.
+
     Race efforts count fully toward volume and training load, but are excluded
     from averages over aerobic signals, because a maximal effort is not
     comparable with a training run. Each section states the basis it was
@@ -68,7 +73,11 @@ module ToolRegistry
     steady stretch, a cooldown — and reports each phase's distance, pace and
     heart rate, along with the per-rep paces of a set. Individual lap splits are
     not returned, so a single fastest kilometre still cannot be quoted, and the
-    response says which lap basis it had.
+    response says which lap basis it had. Where describe_run finds nothing on
+    the day it was given, it reports today's date, the latest activity, the
+    nearest activities either side with the gaps to them, and any activity on
+    the same day in a neighbouring year, so a wrong year shows in the response
+    rather than as an empty day.
 
     Report in prose, in the third person — this is one runner's history, and the
     reader is usually not that runner. Prefer the reading a band label already

@@ -48,6 +48,17 @@ RSpec.describe ChatJob do
 
       expect(Ai::Chat).to have_received(:call).with(hash_including(runner_name: "Steve Gomori"))
     end
+
+    # The tools bound every day by the runner's zone, so the date the prompt
+    # states has to come from the same zone or the two disagree around midnight.
+    it "tells the model what day it is where the runner is" do
+      allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to)
+      Runner.current.update!(timezone: "Pacific/Auckland")
+
+      travel_to(Time.utc(2026, 9, 5, 20, 0, 0)) { run }
+
+      expect(Ai::Chat).to have_received(:call).with(hash_including(today: Date.new(2026, 9, 6)))
+    end
   end
 
   # The job renders outside any request. A partial that quietly depended on

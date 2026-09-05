@@ -11,14 +11,15 @@ module Ai
 
     def self.call(...) = new(...).call
 
-    def initialize(runner_name: nil, client: Client.new)
+    def initialize(today:, runner_name: nil, client: Client.new)
+      @today = today
       @runner_name = runner_name
       @client = client
     end
 
     def call
       @client.answer(
-        system: ContentPrompt.for(@runner_name),
+        system: ContentPrompt.for(@runner_name, today: @today),
         question: ContentPrompt.request,
         model: ENV.fetch("ANTHROPIC_CONTENT_MODEL", DEFAULT_MODEL)
       )

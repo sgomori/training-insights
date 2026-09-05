@@ -10,15 +10,16 @@ module Ai
 
     def self.call(...) = new(...).call
 
-    def initialize(question:, runner_name: nil, client: Client.new)
+    def initialize(question:, today:, runner_name: nil, client: Client.new)
       @question = question
+      @today = today
       @runner_name = runner_name
       @client = client
     end
 
     def call
       @client.answer(
-        system: ChatPrompt.for(@runner_name),
+        system: ChatPrompt.for(@runner_name, today: @today),
         question: @question,
         model: ENV.fetch("ANTHROPIC_CHAT_MODEL", DEFAULT_MODEL)
       )

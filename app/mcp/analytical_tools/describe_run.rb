@@ -59,9 +59,11 @@ module AnalyticalTools
       def call(date: nil, started_at: nil, server_context: nil)
         zone = runner_time_zone
 
-        activity, alternatives = resolve(date: date, started_at: started_at, zone: zone)
-        return activity if activity.is_a?(MCP::Tool::Response)
-        return failure(no_match_message(date: date, started_at: started_at)) if activity.nil?
+        target = parse_target(date: date, started_at: started_at, zone: zone)
+        return target if target.is_a?(MCP::Tool::Response)
+
+        activity, alternatives = resolve(target, zone)
+        return miss(target, date: date, started_at: started_at, zone: zone) if activity.nil?
 
         segmentation = LapSegmentation.call(activity.activity_laps.to_a)
 
@@ -82,38 +84,40 @@ module AnalyticalTools
 
       private
 
-      # Returns the chosen activity and anything else that shared its day, so a
-      # double day is visible in the response rather than silently collapsed.
-      def resolve(date:, started_at:, zone:)
-        if started_at.present?
-          parsed = parse_time(started_at, zone)
-          return [ parsed, [] ] if parsed.is_a?(MCP::Tool::Response)
+      # A time when started_at was given, a date when date was, nil for the most
+      # recent activity, or the failure response for a value that would not read.
+      def parse_target(date:, started_at:, zone:)
+        return parse_time(started_at, zone) if started_at.present?
+        return parse_date(date) if date.present?
 
-          chosen = Activity.starting_between(parsed - RESOLUTION, parsed + RESOLUTION).first
-          return [ nil, [] ] if chosen.nil?
-
-          return [ chosen, others_that_day(chosen, zone) ]
-        end
-
-        return [ Activity.most_recent_first.first, [] ] if date.blank?
-
-        parsed = parse_date(date)
-        return [ parsed, [] ] if parsed.is_a?(MCP::Tool::Response)
-
-        day = activities_on(parsed, zone)
-        return [ nil, [] ] if day.empty?
-
-        # The longest, not the first. On a double day the question is almost
-        # always about the session rather than the shakeout, and the response
-        # names the other efforts either way.
-        chosen = day.max_by { |candidate| candidate.distance_meters.to_f }
-        [ chosen, day - [ chosen ] ]
+        nil
       end
 
+      # Returns the chosen activity and anything else that shared its day, so a
+      # double day is visible in the response rather than silently collapsed.
+      def resolve(target, zone)
+        case target
+        when nil
+          [ Activity.most_recent_first.first, [] ]
+        when Date
+          day = activities_on(target, zone)
+          return [ nil, [] ] if day.empty?
+
+          # The longest, not the first. On a double day the question is almost
+          # always about the session rather than the shakeout, and the response
+          # names the other efforts either way.
+          chosen = day.max_by { |candidate| candidate.distance_meters.to_f }
+          [ chosen, day - [ chosen ] ]
+        else
+          chosen = Activity.starting_between(target - RESOLUTION, target + RESOLUTION).first
+          chosen.nil? ? [ nil, [] ] : [ chosen, others_that_day(chosen, zone) ]
+        end
+      end
+
+      # Ordered, so a tie on distance between two efforts on one day resolves the
+      # same way every call.
       def activities_on(date, zone)
-        Activity.starting_between(
-          zone.parse(date.to_s).beginning_of_day, zone.parse(date.to_s).end_of_day
-        ).to_a
+        Activity.on_day(date, zone).chronological.to_a
       end
 
       def others_that_day(activity, zone)
@@ -133,17 +137,31 @@ module AnalyticalTools
                 "2026-07-30T07:15:00-04:00.")
       end
 
-      def no_match_message(date:, started_at:)
-        return "No activity started at #{started_at}." if started_at.present?
-        return "No activity was recorded on #{date}." if date.present?
+      # An error, because an empty day is not a described run — but one that
+      # carries what surrounds the day, as prose and as data, so a client that
+      # asked about the wrong year can see that and ask again.
+      def miss(target, date:, started_at:, zone:)
+        return failure("No activities have been recorded yet.") if target.nil?
 
-        "No activities have been recorded yet."
+        headline = started_at.present? ? "No activity started at #{started_at}." : "No activity was recorded on #{date}."
+        surroundings = EmptyDay.new(target.to_date, zone)
+
+        MCP::Tool::Response.new(
+          [ { type: "text", text: [ headline, surroundings.to_prose ].join(" ") } ],
+          structured_content: { requested: started_at.presence || date, found: false }.merge(surroundings.to_h),
+          error: true
+        )
       end
 
+      # as_of and days_ago sit beside the resolution so a client that asked
+      # about the wrong year can see it landed a year off, without doing the
+      # date arithmetic itself.
       def selection(date:, started_at:, activity:, alternatives:, zone:)
         {
           requested: started_at.presence || date.presence || "most recent activity",
           resolved_to: activity.started_at.in_time_zone(zone).iso8601,
+          as_of: zone.today.to_s,
+          days_ago: (zone.today - activity.started_at.in_time_zone(zone).to_date).to_i,
           other_activities_that_day: alternatives.map do |other|
             {
               started_at: other.started_at.in_time_zone(zone).iso8601,

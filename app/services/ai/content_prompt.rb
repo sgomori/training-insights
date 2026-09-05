@@ -19,12 +19,14 @@ module Ai
       TEXT
     end
 
-    def self.for(runner_name)
+    def self.for(runner_name, today:)
       subject = runner_name.presence || "the runner"
 
       <<~TEXT.strip
         You write the standing summary at the top of #{subject}'s training site.
         It is the first thing every visitor reads, and most of them do not run.
+
+        #{DateAnchor.for(today)}
 
         Write it as a short narrative: what #{subject} has been doing lately and
         how it is going. Someone who has never trained for anything should follow

@@ -29,8 +29,9 @@ bin/rails runner 't = SolidQueue::RecurringTask.from_configuration("x", command:
 
 ## Solid Cache: `max_age` defaults to 2 weeks and re-writes do not reset it
 
-`config/cache.yml` leaves `max_age` commented out, so `SolidCache::Store::Expiry`
-uses its `2.weeks` default. `max_size` is set but `cache_full?` is false in
+`config/cache.yml` now sets `max_age: 1.year` explicitly (verified 2026-09-05) —
+this half is fixed, do not re-flag it. Left at the library default it is
+`2.weeks` via `SolidCache::Store::Expiry`. `max_size` is set but `cache_full?` is false in
 normal operation, so the age branch is the one that runs.
 
 The sharp edge: `SolidCache::Entry.write_multi` upserts with
@@ -43,11 +44,13 @@ in fifty writes.
 Consequence for this app: anything long-lived kept in `Rails.cache` under a
 stable key — the standing summary in `Answers::Cache.content_key` above all —
 will disappear at an arbitrary moment regardless of how recently it was
-regenerated. Long-lived generated artefacts belong in a table, not the cache.
+regenerated — now a year after its first write rather than a fortnight, so the
+failure is deferred, not removed. Long-lived generated artefacts belong in a table, not the cache.
 
 **How to apply:** treat "unversioned cache key + regenerated in place" as a bug
 pattern here, not a design. And recompute queue routing from the job class
 default, never from the queue name the author intended.
 
 See also [[review-trap-connection-pools]] for the pool-sizing half of the same
-config surface.
+config surface, and [[review-trap-answer-cache-has-no-date]] for what the cache
+keys themselves do and do not encode.

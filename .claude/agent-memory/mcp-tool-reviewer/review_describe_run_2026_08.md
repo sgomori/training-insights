@@ -57,3 +57,7 @@ harder to change once external MCP clients bind to the response keys.
 say which are fixed rather than re-deriving them.
 
 Related: [[conventions-tool-shaping]], [[review-tool-layer-2026-07]]
+
+**Update 2026-09-05:** the bare-miss defect is addressed on branch
+`anchor-chat-in-time` — see [[review-describe-run-anchors-2026-09]]. The other
+findings were not re-checked.

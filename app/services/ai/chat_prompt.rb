@@ -7,13 +7,15 @@ module Ai
   # own instructions on connect. Repeating them here would give the same
   # guidance two owners and let them disagree.
   module ChatPrompt
-    def self.for(runner_name)
+    def self.for(runner_name, today:)
       subject = runner_name.presence || "the runner"
 
       <<~TEXT.strip
         You are the chat surface on #{subject}'s training site. Visitors ask about
         #{subject}'s running, and you answer from the training tools available to
         you and from nothing else.
+
+        #{DateAnchor.for(today)}
 
         Each question arrives on its own, with no memory of what came before. A
         question that depends on an earlier one — "what about last year?" — cannot

@@ -72,6 +72,17 @@ RSpec.describe AnalyticalTools::DescribeRun do
       expect(result[:activity][:distance_km]).to eq(5.0)
     end
 
+    # A wrong year that lands on a real run is otherwise invisible: the tool
+    # would describe it with complete confidence. The distance from today makes
+    # a year's error obvious without any date arithmetic on the client's side.
+    it "says how far from today the described run was" do
+      run_on("2025-06-12")
+
+      result = described_class.call(date: "2025-06-12").structured_content
+
+      expect(result[:selection]).to include(as_of: "2026-06-15", days_ago: 368)
+    end
+
     it "omits the alternatives key when the day held one activity" do
       run_on("2026-06-12")
 
@@ -87,11 +98,70 @@ RSpec.describe AnalyticalTools::DescribeRun do
       expect(response.content.first[:text]).to match(/No activities have been recorded yet/)
     end
 
-    it "names the empty day" do
-      run_on("2026-06-01")
+    # A client that does not know the date asks about a day a year off, then
+    # searches around the empty day it was told about. The miss carries today,
+    # the latest activity and the neighbours so the search is unnecessary.
+    it "names the empty day and anchors it in time" do
+      run_on("2026-06-01", distance_meters: 10_000)
+      run_on("2026-06-12", distance_meters: 8_000)
 
       response = described_class.call(date: "2026-06-08")
-      expect(response.content.first[:text]).to match(/No activity was recorded on 2026-06-08/)
+      text = response.content.first[:text]
+
+      expect(response.error?).to be(true)
+      expect(text).to match(/\ANo activity was recorded on 2026-06-08\. Today is 2026-06-15 and the most recent activity was on 2026-06-12 \(8\.0 km, running\)\./)
+      expect(text).to match(/The nearest activity was 7 days before, on 2026-06-01 \(10\.0 km, running\)\./)
+    end
+
+    # The prose is for a model; the data is for a client that wants to re-call
+    # without parsing a sentence for a year.
+    it "carries the same anchors as structured content" do
+      run_on("2026-06-01", distance_meters: 10_000)
+      run_on("2026-06-12", distance_meters: 8_000)
+
+      data = described_class.call(date: "2026-06-08").structured_content
+
+      expect(data).to include(requested: "2026-06-08", found: false, as_of: "2026-06-15")
+      expect(data[:most_recent_activity]).to eq(date: "2026-06-12", distance_km: 8.0, activity_type: "running")
+      expect(data[:nearest_before]).to include(date: "2026-06-01", days_before: 7)
+      expect(data).not_to have_key(:nearest_after)
+    end
+
+    it "points at the same day in another year, so a wrong year is visible" do
+      run_on("2026-06-08", distance_meters: 25_000)
+      run_on("2025-06-10")
+
+      response = described_class.call(date: "2025-06-08")
+
+      expect(response.content.first[:text]).to match(/same day in another year holds an activity: 2026-06-08 \(25\.0 km, running\)\./)
+      expect(response.structured_content[:same_day_other_years]).to eq([ { date: "2026-06-08", distance_km: 25.0, activity_type: "running" } ])
+    end
+
+    # A timestamp carries a year like a date does, and it is the parameter
+    # clients most often hand back from another response.
+    it "anchors a miss on an exact start time the same way" do
+      run_on("2026-06-08", distance_meters: 25_000)
+
+      response = described_class.call(started_at: "2025-06-08T09:00:00-04:00")
+
+      expect(response.error?).to be(true)
+      expect(response.content.first[:text]).to match(/\ANo activity started at 2025-06-08T09:00:00-04:00\. Today is 2026-06-15/)
+      expect(response.structured_content[:same_day_other_years].sole[:date]).to eq("2026-06-08")
+    end
+
+    it "still anchors the day when no activities exist at all" do
+      text = described_class.call(date: "2026-06-08").content.first[:text]
+
+      expect(text).to eq("No activity was recorded on 2026-06-08. Today is 2026-06-15.")
+    end
+
+    it "copes with a leap day that other years do not have" do
+      run_on("2023-03-01")
+
+      response = described_class.call(date: "2024-02-29")
+
+      expect(response.error?).to be(true)
+      expect(response.content.first[:text]).to match(/No activity was recorded on 2024-02-29/)
     end
 
     it "rejects a date it cannot read" do
