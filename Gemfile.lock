@@ -154,7 +154,7 @@ GEM
       net-pop
       net-smtp
     marcel (1.2.1)
-    mcp (1.2.0)
+    mcp (1.4.0)
       json_schemer (>= 2.4)
     mini_mime (1.1.5)
     minitest (6.0.6)
@@ -311,7 +311,7 @@ GEM
       rubocop-rails (>= 2.30)
     ruby-progressbar (1.13.0)
     securerandom (0.4.1)
-    simpleidn (0.2.3)
+    simpleidn (0.3.0)
     solid_cable (4.0.2)
       actioncable (>= 7.2)
       activejob (>= 7.2)
@@ -386,7 +386,7 @@ DEPENDENCIES
   factory_bot_rails
   faker
   importmap-rails
-  mcp (~> 1.2.0)
+  mcp (~> 1.4.0)
   pg (~> 1.1)
   propshaft
   puma (>= 5.0)
