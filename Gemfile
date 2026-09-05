@@ -39,7 +39,7 @@ gem "bootsnap", require: false
 # mounted endpoint and came back identical. A client asking for a modern
 # protocol version through initialize now receives 2025-11-25 rather than an
 # error, so that path degrades instead of breaking. 1.3.0 is unverified.
-gem "mcp", "~> 1.2.0"
+gem "mcp", "~> 1.4.0"
 
 # Anthropic API client for the website's chat and pre-generated content
 #
