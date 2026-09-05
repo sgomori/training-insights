@@ -140,13 +140,16 @@ as its own PR.
 
 Two gems carry deliberate ceilings:
 
-- `mcp` at `~> 1.2.0`. The SEP-2575 rework in 1.2.0 leaves the legacy path the
-  Anthropic connector negotiates byte-identical, confirmed by diffing
-  `initialize`, `tools/list` and `tools/call` over the mounted endpoint against
-  1.1.0. Widening past 1.2.x needs the same check: no test covers that wire,
-  because the connector reaches the tools over the public `/mcp` URL.
-- `anthropic` at `~> 1.65.0`, so a change to refusal or fallback behaviour on
-  the visitor-facing path arrives as a reviewable PR.
+- `mcp` at `~> 1.4.0`. Every widening is confirmed by diffing `initialize`,
+  `tools/list` and `tools/call` over the mounted endpoint against the version
+  being left behind; 1.4.0 came back byte-identical to 1.2.0, as 1.2.0 had to
+  1.1.0. The check is manual because no test covers that wire: the connector
+  reaches the tools over the public `/mcp` URL. Run it under a scratch
+  `BUNDLE_GEMFILE` carrying only the gem bump, so the gem is the sole variable.
+- `anthropic` at `~> 1.67.0`, so a change to refusal or fallback behaviour on
+  the visitor-facing path arrives as a reviewable PR. Read the gem diff on the
+  beta messages resource and the stop-reason and fallback models; the rest of
+  the SDK is surface this app never calls.
 
 Mechanics that repay the keystrokes:
 
