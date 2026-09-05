@@ -155,5 +155,18 @@ RSpec.describe "Home" do
 
       expect(response.body).to include("How does this year compare with last year?")
     end
+
+    it "offers the race-time projection question" do
+      get root_path
+
+      expect(response.body).to include("What could Steve run for a 5k, 10k or half marathon right now?")
+    end
+
+    # The standing summary is that question already answered.
+    it "does not ask how the training has been going" do
+      get root_path
+
+      expect(response.body).not_to include("training been going lately")
+    end
   end
 end

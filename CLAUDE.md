@@ -183,7 +183,7 @@ Deliberately unresolved. Surface them rather than choosing silently.
 
 | Decision | State |
 |---|---|
-| Activity type scoping | Every aggregating tool counts all activity types; only `get_activities` filters on one. Invisible on a running-only corpus and silently wrong the first time a ride or a swim is ingested — it will enter volume, load and zone aggregates, and `get_personal_records` will offer a 10km ride as a 10k record. `describe_run` is unaffected: it describes one named activity and reports the type it found. Decide before the first non-run arrives. |
+| Activity type scoping | Every aggregating tool counts all activity types; only `get_activities` filters on one. Invisible on a running-only corpus and silently wrong the first time a ride or a swim is ingested — it will enter volume, load and zone aggregates, `get_personal_records` will offer a 10km ride as a 10k record, and `get_race_projections` will project from it. `describe_run` is unaffected: it describes one named activity and reports the type it found. Decide before the first non-run arrives. |
 | MCP Resources and Prompts | Both capabilities are advertised and unused. A Resource carrying the methodology behind the metrics, and Prompts for the common questions, would strengthen the demo. Neither is in `V1_SCOPE.md`, so both need a scope decision rather than a quiet addition. |
 | `races:sync` on deploy | Not wired into `bin/render-build.sh`, deliberately. Revisit once the race calendar stabilises. |
 

@@ -42,15 +42,21 @@ class HomeController < ApplicationController
   # is about the race actually being trained for. Each is phrased the way a
   # visitor would ask it, because that phrasing is the key its answer caches
   # under — and a question two visitors ask the same way is answered once.
+  #
+  # Each question reaches a tool no other question on the page reaches. There
+  # is no "how is the training going" question, because the standing summary
+  # above the buttons is that question already answered.
   def suggested_prompts
     name = @runner&.name&.split&.first || "the runner"
     next_race = @upcoming_races.first
 
     prompts = []
     prompts << "Is #{name} ready for the #{next_race.name}?" if next_race
-    prompts << "How has #{name}'s training been going lately?"
+    prompts << "What could #{name} run for a 5k, 10k or half marathon right now?"
+    prompts << "Is #{name} getting faster?"
+    prompts << "Has #{name} been keeping his easy runs easy?"
     prompts << "What did #{name}'s last hard session look like?"
-    prompts << "How does this year compare with last year?" if next_race.nil?
+    prompts << "How does this year compare with last year?"
     prompts
   end
 end

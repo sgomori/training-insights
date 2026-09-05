@@ -309,6 +309,7 @@ Five to eight high-level analytical tools, plus two to three mid-level escape ha
 - `suggest_next_run(context)` — Returns shaped data informing what a sensible next run would be: recent load, current fatigue indicators, race proximity, recent intensity distribution.
 - `get_recent_activity_summary(days)` — Returns the canonical recent-training overview used by the website's pre-generated content.
 - `describe_run(date)` — Returns one activity's headline figures plus the phases its recorded laps fall into, so an interval session reads as repeats rather than as a single average pace. Laps only; it reads no stream, and it reports the lap basis it worked from because a session lapped every kilometre describes kilometres while one lapped per rep describes reps.
+- `get_race_projections(distances, days)` — Projects recent races and the best recent training effort at each standard distance to a target distance with Riegel's model, banding each projection by the distance ratio it crossed and pairing each race with the aerobic signals from the month before it against the last month. Several projections, no estimate: which reference to trust is the client's reasoning.
 
 **Mid-level escape hatches:**
 

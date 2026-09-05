@@ -46,10 +46,6 @@ module AnalyticalTools
     MIN_DAYS = 7
     MAX_DAYS = 365
 
-    # Proportion of an activity's duration spent in heart rate zone 4 or above
-    # that marks it as a hard session.
-    HARD_ZONE_SHARE_PCT = 20.0
-    HARD_ZONES = %w[zone_4 zone_5].freeze
 
     # Pace variability past this is a structured session — intervals, or a
     # deliberately varied effort — rather than a steady run.
@@ -198,7 +194,7 @@ module AnalyticalTools
 
         window.activities.each do |activity|
           share = hard_zone_share(activity)
-          qualifications[activity] << "time_above_zone_4" if share && share > HARD_ZONE_SHARE_PCT
+          qualifications[activity] << "time_above_zone_4" if share && share > MetricMath::HARD_ZONE_SHARE_PCT
           qualifications[activity] << "structured_pacing" if activity.pace_cv && activity.pace_cv > STRUCTURED_PACE_CV
           qualifications[activity] << "race_effort" if activity.race?
         end
@@ -220,14 +216,8 @@ module AnalyticalTools
         scored.select { |activity| activity.tss_score >= threshold }
       end
 
-      # Share of the activity's duration spent in heart rate zone 4 or above. Nil
-      # rather than zero when the pipeline derived no zone distribution, so an
-      # activity with no heart rate data is not reported as an easy one.
       def hard_zone_share(activity)
-        distribution = activity.hr_zone_distribution
-        return nil if distribution.blank?
-
-        HARD_ZONES.sum { |zone| distribution[zone].to_f }
+        MetricMath.hard_zone_share(activity.hr_zone_distribution)
       end
 
       def notable_signals(window, qualifications, clamped)

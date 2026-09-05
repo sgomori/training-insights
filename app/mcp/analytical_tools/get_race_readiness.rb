@@ -22,7 +22,8 @@ module AnalyticalTools
       the runner actually ran. Defaults to the next scheduled race; a specific race
       or a hypothetical date and distance can be given instead. Reports figures and
       reference bands, never a readiness verdict — the numbers are for the caller
-      to interpret.
+      to interpret. For what time a distance could be run now, rather than how
+      the buildup to it is going, use get_race_projections.
     TEXT
 
     input_schema(

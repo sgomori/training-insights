@@ -45,4 +45,13 @@ Conventions every aggregation in `app/mcp/` must agree on. Verified against the 
 **Why:** the code argues the seven days of a week are the whole population.
 **How to apply:** this inflates monotony by sqrt(7/6) ≈ 8% against the published 1.5/2.0 bands, which come from literature computed with sample SD. If the bands or the SD ever change, they have to change together.
 
+**Race projection conventions, added when `get_race_projections` landed 2026-09-05.**
+- The Riegel exponent lives once, in `MetricMath::RIEGEL_EXPONENT = 1.06`, and `riegel_time(seconds, from_km:, to_km:)` is the only implementation. `get_personal_records` and `get_race_projections` rank efforts through the same call, so a "best 10k" agrees between the two tools.
+- **The reference time basis differs by reference type and is not stated on the wire.** A race projects from nominal distance and recorded time (elapsed). A training effort projects from `average_pace_per_km * measured distance`, and the pipeline derives `average_pace_per_km` from **moving time** (`fit_pipeline/parser.py` prefers `moving_time_seconds`). Two references in one response are therefore on different clocks.
+- Projection reliability bands: far `<0.25`, wide `[0.25,0.5)`, close `[0.5,2.0)`, wide `[2.0,4.0)`, far `>=4.0`, half-open per `MetricInterpretation::Band`. They are **not** symmetric on the log scale the model works on: ratio 0.5 bands "close" and ratio 2.0 bands "wide", so 10k->5k and 5k->10k, and half->marathon and marathon->half, get different labels.
+- Race lookback is a fixed 365 days, independent of the `days` parameter, and is written `(today - 365)..today` — 366 inclusive days, where every other window in the codebase uses `today - (days - 1)`.
+- The then/now fitness comparison is `TrainingContext::CHRONIC_DAYS` (28) on both sides: `race_date - 28 .. race_date - 1` against `today - 27 .. today`. Equal length by construction, and it overlaps for any race inside ~26 days, which the basis discloses.
+- `MetricMath::HARD_ZONE_SHARE_PCT = 20.0` over `zone_4 + zone_5` is the hard/easy split for a whole activity. The zones come from whatever LTHR the FIT file carried that day, which drifts 162-171 bpm across the corpus, so "hard" is not a fixed scale over a 365-day window.
+- **Decoupling changes are percentage *points*; efficiency-factor changes are a *percent change*.** Correct as written — a percent change of a percentage is meaningless — and any new metric pairing has to keep the distinction and name it in the field name.
+
 Related: [[review-standing-concerns]]

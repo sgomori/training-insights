@@ -11,6 +11,7 @@ module ToolRegistry
     AnalyticalTools::GetTrainingBlockSummary,
     AnalyticalTools::GetPaceProgression,
     AnalyticalTools::GetPersonalRecords,
+    AnalyticalTools::GetRaceProjections,
     AnalyticalTools::GetRaceReadiness,
     AnalyticalTools::SuggestNextRun,
     AnalyticalTools::DescribeRun

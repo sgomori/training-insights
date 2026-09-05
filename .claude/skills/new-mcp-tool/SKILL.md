@@ -9,7 +9,7 @@ Tools are the central engineering work of this project. Design the response shap
 
 ## 1. Confirm it belongs
 
-Check `V1_SCOPE.md` for the target inventory. The v1 high-level tools are `get_race_readiness`, `get_training_load`, `get_pace_progression`, `get_training_block_summary`, `suggest_next_run`, `get_recent_activity_summary`; the escape hatches are `get_activities`, `get_personal_records`, `compare_periods`. A tool outside that list needs a scope decision first — surface it rather than building it.
+Check `V1_SCOPE.md` for the target inventory. The v1 high-level tools are `get_race_readiness`, `get_training_load`, `get_pace_progression`, `get_training_block_summary`, `suggest_next_run`, `get_recent_activity_summary`, `describe_run`, `get_race_projections`; the escape hatches are `get_activities`, `get_personal_records`, `compare_periods`. A tool outside that list needs a scope decision first — surface it rather than building it.
 
 ## 2. Design the response shape first
 

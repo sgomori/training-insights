@@ -53,6 +53,39 @@ module MetricMath
     numerator / denominator
   end
 
+  # Riegel's endurance model: T2 = T1 * (D2 / D1) ** 1.06. The standard exponent
+  # of 1.06 is the value fitted across a wide range of race results. It is an
+  # extrapolation, and it grows less reliable the further the two distances are
+  # apart, so a tool that reports it also reports the ratio it was taken over.
+  RIEGEL_EXPONENT = 1.06
+
+  def riegel_time(seconds, from_km:, to_km:)
+    seconds * ((to_km / from_km.to_f)**RIEGEL_EXPONENT)
+  end
+
+  # Zones 4 and 5 are the hard end of the five-zone heart rate model, and an
+  # activity that spent more than this share of its duration there was a hard
+  # session rather than an easy one with a surge in it.
+  HARD_ZONES = %w[zone_4 zone_5].freeze
+  HARD_ZONE_SHARE_PCT = 20.0
+
+  # Share of an activity's duration spent in heart rate zone 4 or above. Nil
+  # rather than zero when the pipeline derived no zone distribution, so an
+  # activity with no heart rate data is not reported as an easy one.
+  def hard_zone_share(distribution)
+    return nil if distribution.blank?
+
+    HARD_ZONES.sum { |zone| distribution[zone].to_f }
+  end
+
+  # Nil, not false, when there is no distribution to judge by.
+  def hard_effort?(distribution)
+    share = hard_zone_share(distribution)
+    return nil if share.nil?
+
+    share > HARD_ZONE_SHARE_PCT
+  end
+
   # Population standard deviation, which is what Foster's monotony is defined
   # over: the seven days of a week are the whole population, not a sample drawn
   # from a larger one.

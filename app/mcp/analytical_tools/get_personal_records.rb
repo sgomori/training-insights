@@ -23,7 +23,9 @@ module AnalyticalTools
       record reports the distance actually covered alongside its equivalent time at
       the nominal distance, computed with Riegel's endurance model so that a short
       effort inside the tolerance band is not credited as if pace held constant.
-      Race-linked efforts are named and preferred when two efforts tie.
+      Race-linked efforts are named and preferred when two efforts tie. Records
+      span the whole history; for what the runner could run now, use
+      get_race_projections.
     TEXT
 
     input_schema(
@@ -51,11 +53,6 @@ module AnalyticalTools
       records: the fastest 5km inside a longer run is not considered, because no
       tool on this server queries into an activity's streams.
     TEXT
-
-    # Riegel's exponent. T2 = T1 * (D2 / D1) ** 1.06 is the standard endurance
-    # model for predicting one distance from another, and 1.06 is the value fitted
-    # across a wide range of race results.
-    RIEGEL_EXPONENT = 1.06
 
     class << self
       def call(distances: nil, server_context: nil)
@@ -127,9 +124,8 @@ module AnalyticalTools
       # it landed exactly on the nominal distance.
       def equivalent_time(activity, bucket)
         actual_km = activity.distance_meters / 1000.0
-        own_time = activity.average_pace_per_km * actual_km
 
-        own_time * ((bucket.nominal_km / actual_km)**RIEGEL_EXPONENT)
+        riegel_time(activity.average_pace_per_km * actual_km, from_km: actual_km, to_km: bucket.nominal_km)
       end
 
       def best_effort(activity, bucket, zone)
@@ -142,7 +138,7 @@ module AnalyticalTools
           pace_per_km: pace.round(1),
           grade_adjusted_pace_per_km: activity.avg_grade_adjusted_pace_per_km&.round(1),
           equivalent_time_at_nominal_distance: equivalent_time(activity, bucket).round,
-          equivalent_time_model: "Riegel, exponent #{RIEGEL_EXPONENT}",
+          equivalent_time_model: "Riegel, exponent #{MetricMath::RIEGEL_EXPONENT}",
           elevation_gain_meters: activity.elevation_gain_meters&.round,
           average_heart_rate: activity.average_heart_rate,
           race_name: activity.race&.name,

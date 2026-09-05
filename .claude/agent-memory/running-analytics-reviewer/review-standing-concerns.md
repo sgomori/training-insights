@@ -25,4 +25,10 @@ The arithmetic in `app/mcp/` is unusually careful: nil handling, duration-weight
 **6. Unweighted means over unequal-length laps.** The duration weighting that the cross-activity tools get right (zone distributions, weighted pace) is missed at lap level: a phase's `average_heart_rate` is a plain mean of per-lap averages, so a 200 m float counts as much as the kilometre beside it.
 **How to apply:** any mean over laps needs `Σ(value × duration) / Σ(duration)` over the laps that actually carried the value, and the count of contributing laps reported alongside — laps are far less uniform in length than activities are.
 
+**7. A band is selected from a value that was already rounded for display, and half-open bands on a multiplicative scale break symmetry.** `get_race_projections#projections` rounds the distance ratio to 2 dp and then bands the rounded number, so a 5.01km reference to a 10k target — true ratio 1.996, "close" — is labelled "wide". The band table is itself asymmetric: 0.5 is "close" and 2.0 is "wide" though they are the same log-distance from 1.
+**How to apply:** band the unrounded value and report the rounded one separately. When the metric is a ratio, define the bands over `Math.log(ratio).abs` or make the bounds mirror each other explicitly, and check both directions of the most common pair.
+
+**8. A qualitative claim in `description` or a `BASIS` constant is not gated the way a per-figure caveat is.** `get_race_projections` states flatly that a training-effort projection "is a floor". That holds when the reference is submaximal and the ratio is near 1; it fails on a far upward extrapolation, where Riegel short-to-long optimism can exceed the margin the submaximal effort bought.
+**How to apply:** static basis prose applies to every row in the response, including the rows the tool itself bands as unreliable. Check the worst row in the response before writing an unconditional claim, or gate the claim on the band.
+
 Definitions of the conventions themselves: [[analytical-conventions]]

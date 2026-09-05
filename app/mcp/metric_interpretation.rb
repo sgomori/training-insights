@@ -217,6 +217,23 @@ module MetricInterpretation
       ]
     ),
 
+    projection_distance_ratio: Definition.new(
+      unit: "ratio of the longer distance to the shorter",
+      direction: "closer_to_one_is_more_reliable",
+      guidance: "How far a Riegel projection had to travel, taken as the larger of the two distances over " \
+                "the smaller so that 5k to 10k and 10k to 5k band alike. The model is fitted across race " \
+                "results at moderate ratios and degrades as they separate, and the bias has a direction: " \
+                "carried from a short effort to a long distance it turns optimistic, because it assumes " \
+                "the endurance to hold the pace, and carried from a long effort to a short one it runs " \
+                "conservative and tests none of the top-end speed the shorter race needs. Adjacent " \
+                "standard distances sit near a ratio of 2; a marathon is over eight times a 5k.",
+      bands: [
+        band("close", min: 1.0, max: 3.0),
+        band("wide", min: 3.0, max: 6.0),
+        band("far extrapolation", min: 6.0)
+      ]
+    ),
+
     hrv_ms: Definition.new(
       unit: "milliseconds",
       direction: "higher_is_better",
