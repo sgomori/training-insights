@@ -211,6 +211,153 @@ RSpec.describe LapSegmentation do
     end
   end
 
+  # The set is judged as it is walked, not after. Judged whole, the one window
+  # that held the six kilometre reps also held the strides after them and failed
+  # the length check, so a common session shape reported no repeats at all.
+  describe "a set followed by something shorter" do
+    let(:laps) do
+      [ lap(1_000, 360), lap(1_000, 360) ] +
+        reps(6, distance: 1_000, pace: 240, recovery_distance: 400, recovery_pace: 360) +
+        reps(2, distance: 200, pace: 210, recovery_distance: 200, recovery_pace: 400) +
+        [ lap(1_000, 360) ]
+    end
+
+    it "still finds the set" do
+      repeats = result[:phases].find { |phase| phase[:kind] == "repeats" }
+
+      expect(repeats).to include(reps: 6, rep_distance_km: 1.0)
+    end
+
+    it "leaves the strides as the loose efforts they are" do
+      kinds = result[:phases].map { |phase| phase[:kind] }
+
+      expect(kinds.first(2)).to eq(%w[warmup repeats])
+      expect(kinds.count("faster")).to eq(2)
+      expect(kinds).not_to include("cooldown")
+    end
+
+    # The jog between the last rep and the first stride is the run-in to the
+    # strides as much as it is the set's recovery, so the set ends on its rep.
+    it "does not swallow the run-in to the strides as the set's last recovery" do
+      repeats = result[:phases].find { |phase| phase[:kind] == "repeats" }
+
+      expect(repeats[:distance_km]).to eq(8.0)
+      expect(result[:phases][2][:kind]).to be_in(%w[steady easier])
+    end
+  end
+
+  # Strides before the main work are as common as strides after it. Ranked on
+  # count, four strides beat three 1600s and the session reads as a set of
+  # strides with 4.8 km of unexplained fast running beside it.
+  describe "strides before the main set" do
+    let(:laps) do
+      [ lap(2_000, 330) ] +
+        reps(4, distance: 200, pace: 210, recovery_distance: 200, recovery_pace: 400) +
+        reps(3, distance: 1_600, pace: 240, recovery_distance: 400, recovery_pace: 360) +
+        [ lap(1_000, 330) ]
+    end
+
+    it "reports the main set as the repeats" do
+      repeats = result[:phases].find { |phase| phase[:kind] == "repeats" }
+
+      expect(repeats).to include(reps: 3, rep_distance_km: 1.6)
+    end
+  end
+
+  describe "a ladder" do
+    def ladder(first, second)
+      [ lap(2_000, 330) ] +
+        reps(4, distance: first, pace: 240, recovery_distance: 400, recovery_pace: 360) +
+        reps(4, distance: second, pace: 225, recovery_distance: 400, recovery_pace: 360) +
+        [ lap(1_000, 330) ]
+    end
+
+    it "collapses the set carrying the most distance when it comes first" do
+      repeats = described_class.call(ladder(1_000, 400))[:phases].find { |phase| phase[:kind] == "repeats" }
+
+      expect(repeats).to include(reps: 4, rep_distance_km: 1.0)
+    end
+
+    it "collapses the set carrying the most distance when it comes last" do
+      repeats = described_class.call(ladder(400, 1_000))[:phases].find { |phase| phase[:kind] == "repeats" }
+
+      expect(repeats).to include(reps: 4, rep_distance_km: 1.0)
+    end
+
+    # Distance, not count: three kilometre reps are the session and five 400s
+    # beside them are not, however the two are ordered.
+    it "prefers the set with more distance over the set with more reps" do
+      laps = [ lap(2_000, 330) ] +
+             reps(3, distance: 1_000, pace: 240, recovery_distance: 400, recovery_pace: 360) +
+             reps(5, distance: 400, pace: 225, recovery_distance: 400, recovery_pace: 360) +
+             [ lap(1_000, 330) ]
+
+      repeats = described_class.call(laps)[:phases].find { |phase| phase[:kind] == "repeats" }
+      expect(repeats).to include(reps: 3, rep_distance_km: 1.0)
+    end
+
+    it "breaks a tie on distance by the number of reps" do
+      laps = [ lap(2_000, 330) ] +
+             reps(3, distance: 1_000, pace: 240, recovery_distance: 400, recovery_pace: 360) +
+             reps(6, distance: 500, pace: 230, recovery_distance: 400, recovery_pace: 360) +
+             [ lap(1_000, 330) ]
+
+      repeats = described_class.call(laps)[:phases].find { |phase| phase[:kind] == "repeats" }
+      expect(repeats).to include(reps: 6, rep_distance_km: 0.5)
+    end
+  end
+
+  # Reps admitted under the length ratio can differ by forty percent, and a
+  # median over an apex of 1200, 1600 and 1200 says 1.2 km about a set a third
+  # of which was longer.
+  describe "a pyramid built on adding steps" do
+    let(:laps) do
+      [ lap(2_000, 330) ] +
+        [ 400, 800, 1_200, 1_600, 1_200, 800, 400 ].flat_map { |metres| [ lap(metres, 215), lap(400, 360) ] } +
+        [ lap(1_000, 330) ]
+    end
+
+    it "collapses the apex and reports the range of rep distances" do
+      repeats = result[:phases].find { |phase| phase[:kind] == "repeats" }
+
+      expect(repeats).to include(reps: 3, rep_distance_km: 1.2, rep_distance_range_km: [ 1.2, 1.6 ])
+    end
+
+    it "stays quiet about the range when the reps were the same length" do
+      laps = [ lap(1_000, 360) ] + reps(4, distance: 1_000, pace: 240) + [ lap(1_000, 380) ]
+
+      repeats = described_class.call(laps)[:phases].find { |phase| phase[:kind] == "repeats" }
+      expect(repeats).not_to have_key(:rep_distance_range_km)
+    end
+  end
+
+  # A missed lap press reads two reps as one long one, which ends the set at
+  # the length check. Four reps of an eight-rep session is a confident figure
+  # unless the phase says the alternation went on.
+  describe "a set the length check cut short" do
+    let(:laps) do
+      [ lap(1_000, 360) ] +
+        reps(4, distance: 1_000, pace: 240, recovery_distance: 400, recovery_pace: 360) +
+        [ lap(2_000, 240), lap(400, 360) ] +
+        reps(2, distance: 1_000, pace: 240, recovery_distance: 400, recovery_pace: 360) +
+        [ lap(1_000, 380) ]
+    end
+
+    it "says the alternation continued past the set it found" do
+      repeats = result[:phases].find { |phase| phase[:kind] == "repeats" }
+
+      expect(repeats[:reps]).to eq(4)
+      expect(repeats[:note]).to match(/continued past this set/)
+    end
+
+    it "carries no note when the set ran to the end of the alternation" do
+      laps = [ lap(1_000, 360) ] + reps(4, distance: 1_000, pace: 240) + [ lap(1_000, 380) ]
+
+      repeats = described_class.call(laps)[:phases].find { |phase| phase[:kind] == "repeats" }
+      expect(repeats).not_to have_key(:note)
+    end
+  end
+
   describe "what does not count as repeats" do
     context "with only two fast efforts" do
       let(:laps) { [ lap(1_000, 360) ] + reps(2, distance: 1_000, pace: 270) + [ lap(1_000, 360) ] }

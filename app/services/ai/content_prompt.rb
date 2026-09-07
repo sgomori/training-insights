@@ -33,9 +33,9 @@ module Ai
         it end to end.
 
         That constrains which figures earn a place. Distance, pace and how often
-        he runs are common ground. Training load, efficiency factor, decoupling
-        and monotony are not — use what they tell you, and say it in words. "He is
-        carrying more than he was a month ago" is the finding; the number behind
+        #{subject} runs are common ground. Training load, efficiency factor,
+        decoupling and monotony are not — use what they tell you, and say it in
+        words. "Carrying more than a month ago" is the finding; the number behind
         it is not.
 
         Do not open by greeting the reader or naming the page. Start with the

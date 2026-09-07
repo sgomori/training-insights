@@ -5,10 +5,10 @@ require "rails"
 require "active_model/railtie"
 require "active_job/railtie"
 require "active_record/railtie"
-# Active Storage is not required: nothing in the app attaches or serves files,
-# and its engine loads in every process on a memory-constrained instance.
+# Active Storage and Action Mailer are not required: nothing in the app attaches
+# or serves files or sends mail, and every engine loads into the one process a
+# memory-constrained instance runs.
 require "action_controller/railtie"
-require "action_mailer/railtie"
 # require "action_mailbox/engine"
 # require "action_text/engine"
 require "action_view/railtie"

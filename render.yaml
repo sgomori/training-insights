@@ -11,6 +11,11 @@ services:
     region: ohio
     branch: main
     buildCommand: "./bin/render-build.sh"
+    # Schema work runs here, between the build and the new instance starting,
+    # rather than in the build. The build box is for bundling and assets; a
+    # migration belongs in the step Render reserves for it, where a failure
+    # stops the deploy and the previous instance keeps serving.
+    preDeployCommand: "bundle exec rails db:prepare && bundle exec rails db:load_solid_schemas"
     startCommand: "bundle exec puma -C config/puma.rb"
     healthCheckPath: /up
     domains:

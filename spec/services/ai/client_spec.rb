@@ -14,9 +14,12 @@ RSpec.describe Ai::Client do
     double(type: type, text: text)
   end
 
+  def response(content:, stop_reason: :end_turn, stop_details: nil)
+    double(content: content, stop_reason: stop_reason, stop_details: stop_details)
+  end
+
   def responds_with(content:, stop_reason: :end_turn, stop_details: nil)
-    allow(messages).to receive(:create)
-      .and_return(double(content: content, stop_reason: stop_reason, stop_details: stop_details))
+    allow(messages).to receive(:create).and_return(response(content:, stop_reason:, stop_details:))
   end
 
   def answer
@@ -61,7 +64,41 @@ RSpec.describe Ai::Client do
     # max_tokens caps thinking and response text together, so it is not the
     # length of the answer.
     it "leaves room for the model to work through several tool calls" do
-      expect(sent[:max_tokens]).to be >= 8_192
+      expect(sent[:max_tokens]).to be >= 16_000
+    end
+  end
+
+  # A long tool-using turn can come back paused rather than finished. The
+  # content so far goes back as the assistant's turn and the request is resent;
+  # a visitor should never see the failure bubble for a turn that only needed
+  # continuing.
+  describe "a paused turn" do
+    it "sends the work so far back and continues" do
+      paused = response(content: [ block(:mcp_tool_use) ], stop_reason: :pause_turn)
+      finished = response(content: [ block(:text, "Volume is up.") ])
+      allow(messages).to receive(:create).and_return(paused, finished)
+
+      expect(answer).to eq("Volume is up.")
+      expect(messages).to have_received(:create).twice
+      expect(messages).to have_received(:create).with(hash_including(
+        messages: [ { role: :user, content: "how is training going?" },
+                    { role: :assistant, content: paused.content } ]
+      ))
+    end
+
+    it "keeps prose written before the pause" do
+      paused = response(content: [ block(:text, "So far, steady.") ], stop_reason: :pause_turn)
+      finished = response(content: [ block(:text, "And the long runs are back.") ])
+      allow(messages).to receive(:create).and_return(paused, finished)
+
+      expect(answer).to eq("So far, steady.\n\nAnd the long runs are back.")
+    end
+
+    it "gives up on a turn that keeps pausing" do
+      allow(messages).to receive(:create).and_return(response(content: [], stop_reason: :pause_turn))
+
+      expect { answer }.to raise_error(described_class::Truncated, /still paused/)
+      expect(messages).to have_received(:create).exactly(described_class::MAX_CONTINUATIONS + 1).times
     end
   end
 
@@ -99,6 +136,14 @@ RSpec.describe Ai::Client do
       responds_with(content: [ block(:thinking) ])
 
       expect { answer }.to raise_error(described_class::Empty)
+    end
+
+    # The prose in a truncated response reads as an answer that stops
+    # mid-sentence. Returned, it would be cached and served as one.
+    it "raises rather than returning the front half of an answer" do
+      responds_with(content: [ block(:text, "He has been running well, and the") ], stop_reason: :max_tokens)
+
+      expect { answer }.to raise_error(described_class::Truncated, /max_tokens/)
     end
   end
 end

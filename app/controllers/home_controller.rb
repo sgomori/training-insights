@@ -54,7 +54,7 @@ class HomeController < ApplicationController
     prompts << "Is #{name} ready for the #{next_race.name}?" if next_race
     prompts << "What could #{name} run for a 5k, 10k or half marathon right now?"
     prompts << "Is #{name} getting faster?"
-    prompts << "Has #{name} been keeping his easy runs easy?"
+    prompts << "Have #{name}'s easy runs stayed easy?"
     prompts << "What did #{name}'s last hard session look like?"
     prompts << "How does this year compare with last year?"
     prompts

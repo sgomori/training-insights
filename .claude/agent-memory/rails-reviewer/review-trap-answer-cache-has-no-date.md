@@ -31,3 +31,5 @@ question text, so changing the key is a decision to surface, not a quiet edit.
 Solid Cache eviction is a separate axis — see
 [[review-trap-solid-defaults]]. Zone correctness is
 [[review-trap-time-and-zone]].
+
+**Status 2026-09-06 (verified against `main` at a6284f1 plus branch `review-under-fable`):** closed. `Answers::Cache.version` is now data version plus the runner's calendar day, captured when the question is asked and carried through `ChatJob`, per the CLAUDE.md row added the same day. The trap to watch for now is the reverse — a new cache key that omits the day.

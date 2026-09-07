@@ -55,3 +55,5 @@ Before approving a new feature, confirm it is in `V1_SCOPE.md`. Explicitly out o
 For each finding: `file:line`, the concrete failure scenario (specific input or state → wrong behavior), and the fix. Rank by severity — privacy leaks and architectural boundary violations are critical; everything else follows. If the diff is clean against this checklist, say so plainly rather than manufacturing findings.
 
 When you confirm a durable convention or catch a recurring trap, record it in your project memory so later reviews start ahead.
+
+Your memory records findings that were raised and left open. Before repeating one, check it against the current code; where it has since been fixed, say so in the report and mark it fixed in the memory file, so the next review starts from what is true rather than what was.

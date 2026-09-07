@@ -324,7 +324,7 @@ RSpec.describe AnalyticalTools::DescribeRun do
     it "says so when the reps held together" do
       interval_session([ 270, 271, 269, 272, 270 ])
 
-      expect(payload[:notable]).to include(a_string_matching(/held them within/))
+      expect(payload[:notable]).to include(a_string_matching(/reps held within/))
     end
 
     it "distinguishes a fade from a negative split, which share every aggregate" do

@@ -44,3 +44,5 @@ designed* and worth reusing: `TrainingWindow` as a composition target,
 registered tool.
 
 Related: [[conventions-tool-shaping]]
+
+**Status 2026-09-06 (verified against `main` at a6284f1 plus branch `review-under-fable`):** all five ranked findings are fixed — `this_buildup` and truncated past buildups, per-metric `sample_size` in the series rows, one query for `series_buckets`, `value` emitted as an explicit null, and the readiness N+1. The lower items are fixed too, except activity-type scoping, which stays an open decision in CLAUDE.md.

@@ -20,11 +20,18 @@ class ChatsController < ApplicationController
     return respond_with(ChatTurn.new(question: question.truncate(MAX_LENGTH)), TOO_LONG) if question.length > MAX_LENGTH
 
     turn = ChatTurn.new(question: question)
-    answered = Answers::Cache.answer_to(question)
+    # Today in the runner's zone, read once. It is the day the prompt will state
+    # and half of the key the answer is filed under, so the two cannot be read
+    # separately or a turn crossing midnight files a D+1 answer under day D.
+    today = Runner.current_time_zone.today
+    version = Answers::Cache.version(today)
+    answered = Answers::Cache.answer_to(question, version: version)
 
     return respond_with(turn, answered) if answered
 
-    ChatJob.perform_later(question, turn.id)
+    # Both travel with the job, so the answer is filed under the data and the
+    # day it was computed against rather than whatever holds when it is done.
+    ChatJob.perform_later(question, turn.id, version: version, today: today)
     respond_pending(turn)
   end
 

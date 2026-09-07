@@ -17,6 +17,16 @@ RSpec.describe "Chat" do
         .to have_enqueued_job(ChatJob).on_queue("chat")
     end
 
+    # The job files its answer under the version in force when the question was
+    # asked, so that version has to travel with it.
+    it "hands the job the version and the day it was asked against" do
+      today = Runner.current_time_zone.today
+
+      expect { ask("How is his buildup going?") }
+        .to have_enqueued_job(ChatJob)
+        .with("How is his buildup going?", anything, version: Answers::Cache.version(today), today: today)
+    end
+
     it "appends the question and a pending bubble" do
       ask("How is his buildup going?")
 
@@ -32,7 +42,7 @@ RSpec.describe "Chat" do
   end
 
   describe "a question already answered against the current data" do
-    before { Answers::Cache.write_answer("How is his buildup going?", "It is going well.") }
+    before { Answers::Cache.write_answer("How is his buildup going?", "It is going well.", version: Answers::Cache.version) }
 
     it "answers from the cache without a job" do
       expect { ask("How is his buildup going?") }.not_to have_enqueued_job(ChatJob)

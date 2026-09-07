@@ -82,3 +82,5 @@ which are fixed rather than re-deriving them.
 
 Related: [[conventions-tool-shaping]], [[review-tool-layer-2026-07]],
 [[review-describe-run-2026-08]]
+
+**Status 2026-09-06 (verified against `main` at a6284f1 plus branch `review-under-fable`):** all eight design findings are fixed — bands `close`/`wide`/`far` over the folded unrounded ratio, `by_target`, `training_beats_race_signals`, `weekly_km` excluding the race, `far_reference_signals` only where no close reference exists, effect-size guards on the fitness signal, grade-adjusted ranking with `ranked_on`, and a single `current_fitness` block. Of the defects, the 366-day window, `time_seconds` from `duration_seconds` with `time_basis`, and the empty `distances` note are fixed; per-race fitness queries and the per-reference `.compact` were not re-checked.

@@ -35,6 +35,22 @@ RSpec.describe "Home" do
     end
   end
 
+  # The suggested questions are phrased about a named runner, and the name is
+  # the only thing known about them. A pronoun in one would be a claim nobody
+  # made, on every self-hoster's site.
+  describe "the suggested questions" do
+    it "name the runner without assuming a pronoun" do
+      create(:runner, name: "Steve Gomori")
+      create(:race, status: "upcoming", race_date: Date.current + 30)
+
+      get root_path
+
+      questions = response.body.scan(/name="question" value="([^"]+)"/).flatten
+      expect(questions).not_to be_empty
+      expect(questions).to all(satisfy { |q| q !~ /\b(he|him|his|she|her|hers)\b/i })
+    end
+  end
+
   # The status line is the only place a visitor sees what the server holds, so
   # it is worth pinning that the figures are real rather than decorative.
   describe "the status line" do

@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 # Build step for the Render web service. Any non-zero exit fails the deploy,
-# which is what we want — a half-migrated instance is worse than no deploy.
+# which is what we want.
+#
+# Bundle and assets only. The database work — db:prepare, and the Solid schema
+# load that db:prepare skips — runs in render.yaml's preDeployCommand, after the
+# build and before the new instance starts, so a failed migration stops the
+# deploy while the previous instance keeps serving.
 set -o errexit
 set -o pipefail
 set -o nounset
@@ -8,13 +13,3 @@ set -o nounset
 bundle install
 bundle exec rails assets:precompile
 bundle exec rails assets:clean
-
-# Creates the database and loads db/schema.rb on first deploy, then applies
-# pending migrations on subsequent ones.
-bundle exec rails db:prepare
-
-# db:prepare does not reach the Solid schemas: cache, queue and cable share the
-# primary's database, which already exists by the time they are considered, so
-# they are skipped as prepared. Without this the queue tables never appear and
-# the Solid Queue supervisor takes Puma down at boot.
-bundle exec rails db:load_solid_schemas

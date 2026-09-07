@@ -269,8 +269,24 @@ module AnalyticalTools
         repeats = phases(segmentation).find { |phase| phase[:kind] == "repeats" }
         return nil unless repeats
 
-        "#{repeats[:reps]} repetitions of about #{repeats[:rep_distance_km]} km" \
-        "#{recovery_clause(repeats)}.#{drift_clause(repeats)}"
+        "#{repeats[:reps]} repetitions of about #{repeats[:rep_distance_km]} km#{rep_distance_clause(repeats)}" \
+        "#{recovery_clause(repeats)}.#{drift_clause(repeats)}#{cut_short_clause(repeats)}"
+      end
+
+      def rep_distance_clause(repeats)
+        range = repeats[:rep_distance_range_km]
+        return "" if range.nil?
+
+        " — though they ranged from #{range.first} to #{range.last} km"
+      end
+
+      # The set the laps support is not always the set the runner ran. Where the
+      # alternation went on with efforts of another length, the count is
+      # qualified rather than left to read as the whole session.
+      def cut_short_clause(repeats)
+        return "" if repeats[:note].nil?
+
+        " Further fast efforts of a different length followed the set."
       end
 
       def recovery_clause(repeats)
@@ -290,17 +306,17 @@ module AnalyticalTools
         drift = repeats[:rep_pace_drift_seconds]
         return "" if drift.nil?
 
-        if drift.abs <= 5 then " He held them within #{drift.abs.round}s per kilometre across the set."
+        if drift.abs <= 5 then " The reps held within #{drift.abs.round}s per kilometre across the set."
         elsif drift.positive? then " They slowed by #{drift.round}s per kilometre from first to last."
         else " They quickened by #{drift.abs.round}s per kilometre from first to last."
         end
       end
 
       # A sustained faster block is the whole point of the session it appears in,
-      # and without this the client has to scan the phases to find it.
+      # and without this the client has to scan the phases to find it. Reported
+      # beside a repeats signal too: a tempo block after a set of strides is the
+      # session, and the set of strides is not.
       def sustained_effort_signal(segmentation)
-        return nil if phases(segmentation).any? { |phase| phase[:kind] == "repeats" }
-
         block = phases(segmentation)
           .select { |phase| phase[:kind] == "faster" && phase[:distance_km].to_f >= SUSTAINED_EFFORT_KM }
           .max_by { |phase| phase[:distance_km] }

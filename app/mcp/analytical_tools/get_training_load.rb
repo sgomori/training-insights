@@ -123,7 +123,13 @@ module AnalyticalTools
           value: compound_weekly_rate(comparable),
           sample_size: comparable.size,
           caveats: ramp_caveats(comparable, total_weeks, changes)
-        ).merge(mean_of_weekly_changes_pct: mean_with_sample(changes, precision: 1)[:value])
+        ).merge(
+          mean_of_weekly_changes_pct: mean_with_sample(changes, precision: 1)[:value],
+          # The sample above counts weeks; the mean is over the transitions
+          # between them, which is one fewer and fewer still where a week
+          # carried no load. Named so the two counts are not read as one.
+          weekly_changes_counted: changes.size
+        )
       end
 
       # (last / first) ** (1 / periods) - 1, over the weeks that bound the window.

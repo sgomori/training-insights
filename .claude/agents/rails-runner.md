@@ -1,7 +1,7 @@
 ---
 name: rails-runner
 description: Executes migrations, specs, linters, the dev server, and seed tasks, returning a compact digest instead of dumping hundreds of lines of output into the main context. Use when the orchestrator needs something run and only needs the distilled result back.
-model: sonnet
+model: haiku
 tools: Read, Bash, Grep, Glob
 memory: project
 ---

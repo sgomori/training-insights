@@ -16,11 +16,16 @@ module Ai
     # blank answer downstream unless it is raised here.
     Empty = Class.new(Error)
 
+    # The model ran out of output tokens mid-answer. The prose it did write is a
+    # sentence that stops rather than an answer, and returning it would let the
+    # caller cache it as one.
+    Truncated = Class.new(Error)
+
     # Caps thinking and response text together, so this is not the length of the
     # answer. Two or three paragraphs need a fraction of it; the rest is
     # headroom for the model to work through several tool calls without being
-    # truncated mid-sentence.
-    MAX_TOKENS = 8_192
+    # truncated mid-sentence. Under the SDK's ten-minute non-streaming ceiling.
+    MAX_TOKENS = 16_384
 
     # Cost and latency are controlled here rather than by turning thinking off.
     # Disabling it lets the model write a tool call into its visible text instead
@@ -28,10 +33,17 @@ module Ai
     # nothing raises. A wrong answer that looks right is worse than a slow one.
     EFFORT = :low
 
-    # A turn runs 15 to 30 seconds. Anything past two minutes has gone wrong, and
-    # waiting the default ten would outlive the process shutdown window.
-    TIMEOUT_SECONDS = 120
+    # A turn runs 15 to 30 seconds. The SDK retries a timeout, so the wall clock
+    # is this times the attempts; 150 seconds is past the point the page has
+    # given up on the bubble, and well short of the default ten minutes, which
+    # would outlive the process shutdown window many times over.
+    TIMEOUT_SECONDS = 75
     MAX_RETRIES = 1
+
+    # A long tool-using turn can come back paused, with the work so far as its
+    # content and a stop reason asking for it to be sent back and continued.
+    # Bounded, because a turn that pauses this many times is not converging.
+    MAX_CONTINUATIONS = 3
 
     BETAS = [ "mcp-client-2025-11-20", "server-side-fallback-2026-07-01" ].freeze
 
@@ -47,11 +59,25 @@ module Ai
     # Returns the answer as prose. Raises rather than returning a blank string on
     # every failure, so a caller cannot mistake one for an answer.
     def answer(system:, question:, model:)
-      message = client.beta.messages.create(**request(system:, question:, model:))
+      params = request(system:, question:, model:)
+      messages = [ client.beta.messages.create(**params) ]
 
-      raise Refused, "declined with #{message.stop_details&.category || 'no category'}" if refused?(message)
+      # The paused turn's content goes back as the assistant's own words, and the
+      # conversation picks up where it stopped.
+      while messages.last.stop_reason == :pause_turn && messages.size <= MAX_CONTINUATIONS
+        params[:messages] += [ { role: :assistant, content: messages.last.content } ]
+        messages << client.beta.messages.create(**params)
+      end
 
-      prose(message).presence or raise Empty, "no text blocks in a #{message.stop_reason} response"
+      final = messages.last
+      raise Refused, "declined with #{final.stop_details&.category || 'no category'}" if final.stop_reason == :refusal
+      raise Truncated, "stopped at max_tokens (#{MAX_TOKENS}) before the answer was complete" if final.stop_reason == :max_tokens
+      raise Truncated, "still paused after #{MAX_CONTINUATIONS} continuations" if final.stop_reason == :pause_turn
+
+      # Prose from every segment, in order: a turn that paused may have written
+      # part of the answer before it did.
+      messages.map { |message| prose(message) }.reject(&:blank?).join("\n\n").presence or
+        raise Empty, "no text blocks in a #{final.stop_reason} response"
     end
 
     private
@@ -87,12 +113,6 @@ module Ai
         tools: [ { type: :mcp_toolset, mcp_server_name: TOOL_SOURCE } ],
         messages: [ { role: :user, content: question } ]
       }
-    end
-
-    # A refusal arrives as a successful response with empty or partial content,
-    # so the stop reason has to be read before the content is.
-    def refused?(message)
-      message.stop_reason == :refusal
     end
 
     # Content blocks are polymorphic and their type is a Symbol. Filtering before

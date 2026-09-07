@@ -27,8 +27,15 @@ RSpec.describe "language visible outside this application" do
     "SQL" => /\bsql\b/i
   }.freeze
 
+  # The server has no pronoun for the runner, and the prompts are shared with
+  # every self-hoster, so neither may assume one. Names are configuration; a
+  # pronoun would be a claim about a person nobody made.
+  PRONOUN = /\b(he|him|his|she|her|hers)\b/i
+
   def offences(text, label)
-    FORBIDDEN.filter_map { |term, pattern| "#{label} mentions #{term}" if text.match?(pattern) }
+    found = FORBIDDEN.filter_map { |term, pattern| "#{label} mentions #{term}" if text.match?(pattern) }
+    found << "#{label} assumes a pronoun" if text.match?(PRONOUN)
+    found
   end
 
   describe "the static surface every client reads on connect" do
@@ -53,15 +60,10 @@ RSpec.describe "language visible outside this application" do
   # Reading the source is the cheaper guard, and the leaks it is written to
   # catch have all been in exactly these prose strings.
   describe "the prose the tools assemble at runtime" do
-    PROSE_FILES = (
-      Dir[Rails.root.join("app/mcp/analytical_tools/*.rb")] +
-        [ Rails.root.join("app/mcp/tool_registry.rb").to_s,
-          Rails.root.join("app/mcp/metric_interpretation.rb").to_s,
-          Rails.root.join("app/mcp/training_window.rb").to_s,
-          Rails.root.join("app/mcp/training_context.rb").to_s,
-          Rails.root.join("app/mcp/empty_day.rb").to_s,
-          Rails.root.join("app/mcp/lap_segmentation.rb").to_s ]
-    ).freeze
+    # Every file under app/mcp, not a hand-kept list, so a new module carrying a
+    # client-visible label joins the check on its own. The endpoint is the one
+    # exclusion: it wires the transport and sends a client no prose.
+    PROSE_FILES = (Dir[Rails.root.join("app/mcp/**/*.rb")].sort - [ Rails.root.join("app/mcp/mcp_endpoint.rb").to_s ]).freeze
 
     # Comments explain the implementation to the next developer and are exactly
     # where words like "Postgres" belong.

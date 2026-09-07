@@ -1,7 +1,10 @@
 require "rails_helper"
 
 RSpec.describe ChatJob do
-  subject(:run) { described_class.perform_now("How is his buildup going?", "turn-1") }
+  subject(:run) { described_class.perform_now("How is his buildup going?", "turn-1", version: version, today: today) }
+
+  let(:today) { Runner.current_time_zone.today }
+  let(:version) { Answers::Cache.version(today) }
 
   let(:turn) { ChatTurn.new(question: "How is his buildup going?", id: "turn-1") }
 
@@ -42,6 +45,20 @@ RSpec.describe ChatJob do
       expect(Answers::Cache.answer_to("How is his buildup going?")).to eq("He is three weeks from his peak.")
     end
 
+    # A run landing mid-turn moves the version on. The answer was computed
+    # before it and must not be filed as though it accounted for it.
+    it "files the answer under the version it was asked against" do
+      allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to)
+      asked_against = version
+      create(:activity)
+
+      described_class.perform_now("How is his buildup going?", "turn-1", version: asked_against, today: today)
+
+      expect(Answers::Cache.answer_to("How is his buildup going?")).to be_nil
+      expect(Answers::Cache.answer_to("How is his buildup going?", version: asked_against))
+        .to eq("He is three weeks from his peak.")
+    end
+
     it "tells the model who it is writing about" do
       allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to)
       run
@@ -49,15 +66,19 @@ RSpec.describe ChatJob do
       expect(Ai::Chat).to have_received(:call).with(hash_including(runner_name: "Steve Gomori"))
     end
 
-    # The tools bound every day by the runner's zone, so the date the prompt
-    # states has to come from the same zone or the two disagree around midnight.
-    it "tells the model what day it is where the runner is" do
+    # The day the prompt states is the day the controller captured, which is
+    # also half of the version the answer is filed under. Read afresh here, a
+    # turn crossing midnight would state D+1 and be filed under D.
+    it "tells the model the day the question was asked on, not the day it is answered" do
       allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to)
-      Runner.current.update!(timezone: "Pacific/Auckland")
+      asked_on = Date.new(2026, 9, 5)
 
-      travel_to(Time.utc(2026, 9, 5, 20, 0, 0)) { run }
+      travel_to(Time.utc(2026, 9, 6, 12, 0, 0)) do
+        described_class.perform_now("How is his buildup going?", "turn-1",
+                                    version: Answers::Cache.version(asked_on), today: asked_on)
+      end
 
-      expect(Ai::Chat).to have_received(:call).with(hash_including(today: Date.new(2026, 9, 6)))
+      expect(Ai::Chat).to have_received(:call).with(hash_including(today: asked_on))
     end
   end
 
@@ -91,6 +112,21 @@ RSpec.describe ChatJob do
 
     it "says so in fixed words" do
       expect(delivered.last[:locals][:answer]).to eq(described_class::REFUSED)
+    end
+
+    it "caches nothing" do
+      allow(Turbo::StreamsChannel).to receive(:broadcast_replace_to)
+      run
+
+      expect(Answers::Cache.answer_to("How is his buildup going?")).to be_nil
+    end
+  end
+
+  describe "when the model runs out of room" do
+    before { failing_with(Ai::Client::Truncated.new("stopped at max_tokens")) }
+
+    it "reports a failure rather than the front half of an answer" do
+      expect(delivered.last[:locals][:answer]).to eq(described_class::FAILED)
     end
 
     it "caches nothing" do

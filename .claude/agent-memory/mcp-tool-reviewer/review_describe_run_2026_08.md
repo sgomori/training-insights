@@ -61,3 +61,5 @@ Related: [[conventions-tool-shaping]], [[review-tool-layer-2026-07]]
 **Update 2026-09-05:** the bare-miss defect is addressed on branch
 `anchor-chat-in-time` — see [[review-describe-run-anchors-2026-09]]. The other
 findings were not re-checked.
+
+**Status 2026-09-06 (verified against `main` at a6284f1 plus branch `review-under-fable`):** findings 1 (per-rep paces and signed drift), 2 (aerobic signals with the steady-state caveat), 4 (sustained-effort signal; the auto-lap caveat moved into `basis`) and 5 are fixed; 3 is addressed by `selection.as_of` and `days_ago` rather than a full context block. Every listed defect is fixed. Confirmed by probe, not by reading. A new defect was found and fixed on this branch: `longest_alternation` judged the whole alternation at once, so a dissimilar tail voided the set — the fix is real and strictly increases the reps found, but it introduced a *selection* regression when a run holds two sets. See [[review-lap-segmentation-2026-09]].

@@ -54,3 +54,5 @@ check these five first and say which are fixed rather than re-deriving them.
 
 Related: [[review-describe-run-2026-08]], [[conventions-tool-shaping]],
 [[review-tool-layer-2026-07]]
+
+**Status 2026-09-06 (verified against `main` at a6284f1 plus branch `review-under-fable`):** all five findings are fixed — `as_of` and `days_ago` on every hit, anchors mirrored into `structured_content`, the `started_at` miss carries them, other-years is bounded to three candidate years, and a neighbour that is the latest activity is dropped. The instructions paragraph now tells the client to resolve the year before calling.

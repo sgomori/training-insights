@@ -47,3 +47,5 @@ Note that `TECHNICAL_SPEC.md` in **this** repo contains an illustrative payload 
 For each finding: the field or block, what the pipeline sends, what Rails does with it, and the consequence (data loss / permanent nil / validation failure on valid input / duplicate row). Note explicitly whether the fix belongs in this repo or in `fit-pipeline` — a contract change requires coordination across both, and the spec calls payload-shape changes breaking changes.
 
 If the contract is fully covered, list the fields you verified so the next review can diff against it. Record the verified field set and any known-stale spec sections in your project memory.
+
+Your memory records findings that were raised and left open. Before repeating one, check it against the current code; where it has since been fixed, say so in the report and mark it fixed in the memory file, so the next review starts from what is true rather than what was.

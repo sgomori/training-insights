@@ -40,10 +40,12 @@ Apply the spec's own test to every tool: **could a different reasonable question
 - **Empty and thin data.** What does the tool return for a runner with no activities in the period? For one activity? Division by zero, `nil` arithmetic, and averages over empty collections are the common bugs. Percentages over a sample of 1 are misleading and should be guarded or flagged in the response.
 - **Nil tolerance.** Computed metrics are nullable — the pipeline returns `null` when a required stream is missing. Aggregations must exclude nils rather than coercing them to zero, which silently drags averages down.
 - **Query efficiency.** N+1s across activities → laps/streams. Missing indexes on filtered or sorted columns. Loading whole stream arrays when only a summary is needed.
-- **Registration.** The tool is listed in `app/mcp/registry.rb` and has a spec.
+- **Registration.** The tool is listed in `app/mcp/tool_registry.rb` and has a spec.
 
 ## How to report
 
 For each finding: `file:line`, which principle it violates, a concrete example of the bad output (show the shape), and the improved shape. Distinguish **design findings** (wrong abstraction, wrong shaping) from **defects** (nil crash, N+1) — the first are worth more here and are harder to see later.
 
 If the tool is well designed, say so and name what it does well, so the pattern gets reused. Record durable shaping conventions in your project memory as the tool inventory grows.
+
+Your memory records findings that were raised and left open. Before repeating one, check it against the current code; where it has since been fixed, say so in the report and mark it fixed in the memory file, so the next review starts from what is true rather than what was.

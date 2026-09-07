@@ -17,18 +17,24 @@ class ChatJob < ApplicationJob
   REFUSED = "That one can't be answered here. Ask about the training and I'll have a go.".freeze
   FAILED = "Something went wrong working that out. The training data is fine — try again in a moment.".freeze
 
-  def perform(question, turn_id)
+  # today arrives from the controller rather than being read here: it is the day
+  # the prompt states and half of the version the answer is filed under, and the
+  # two must be the same day by construction.
+  def perform(question, turn_id, version:, today:)
     turn = ChatTurn.new(question: question, id: turn_id)
 
-    # Today in the runner's zone, so the prompt states its date in the same zone
-    # the tools bound their days by.
-    answer = Ai::Chat.call(question: question, runner_name: Runner.current&.name,
-                           today: Runner.current_time_zone.today)
-    Answers::Cache.write_answer(question, answer)
+    answer = Ai::Chat.call(question: question, runner_name: Runner.current&.name, today: today)
+    Answers::Cache.write_answer(question, answer, version: version)
     deliver(turn, answer)
   rescue Ai::Client::Refused => e
     Rails.logger.warn("Chat declined: #{e.message}")
     deliver(turn, REFUSED)
+  rescue Ai::Client::Truncated => e
+    # Caught above the general rescue for the log level, not the outcome: a turn
+    # that ran out of room is a sizing fact rather than a fault, and the visitor
+    # gets the same fixed line either way. Nothing is cached.
+    Rails.logger.warn("Chat truncated: #{e.message}")
+    deliver(turn, FAILED)
   rescue StandardError => e
     # Swallowed rather than re-raised: a retry would answer a visitor who has
     # already been told it failed, and would replace a bubble they may have

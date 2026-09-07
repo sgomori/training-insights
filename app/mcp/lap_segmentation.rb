@@ -20,12 +20,18 @@
 # of which degrade to loose phases — correct if verbose. None invents a
 # structure.
 #
-# A ladder or pyramid collapses only its longest run of same-length repetitions,
-# because the repeat detector walks forward and never re-segments. A rep the
-# watch split across two consecutive laps reads as one long rep, which can push a
-# set past the length-consistency check. And a set that fades far enough loses
-# its last efforts: the reference is the median of every lap, so once a rep slows
-# to within the tolerance band of it, that rep stops being a rep. Six that fade
+# A ladder collapses only the run of same-length repetitions carrying the most
+# distance, and a second set — strides before or after the main work, the far
+# side of a ladder — stays as loose faster and easier phases beside it. A
+# pyramid built on multiplying steps collapses nothing; one built on adding them
+# collapses its apex, where three consecutive steps sit inside the length ratio,
+# and the phase reports the range of rep distances so the apex is visible as
+# one. A rep the watch split across two consecutive laps reads as one long rep,
+# which ends the set there; the phase says the alternation went on. A recovery
+# lapped in two parts — a jog and a walk — that classify differently breaks the
+# alternation, and the set is not found. And a set that fades far enough loses its
+# last efforts: the reference is the median of every lap, so once a rep slows to
+# within the tolerance band of it, that rep stops being a rep. Six that fade
 # across the band read as four, then a steady stretch — which is what the laps
 # say, if not what the runner set out to do.
 module LapSegmentation
@@ -53,6 +59,10 @@ module LapSegmentation
   # Recoveries this uneven are not one fact, and reporting a median as though
   # they were would hide the interruption rather than describe it.
   RECOVERY_SPREAD_RATIO = 1.5
+
+  # Reps admitted under REP_DISTANCE_RATIO can differ by forty percent, and a
+  # median over them hides an apex. Past this spread the range is reported too.
+  REP_DISTANCE_SPREAD_RATIO = 1.1
 
   # The distances watches actually lap at. Requiring the measured figure to land
   # on one of them is what separates an auto-lap from a hand-lapped set of equal
@@ -216,13 +226,15 @@ module LapSegmentation
       best = longest_alternation(phases)
       return phases unless best
 
-      first, last = best
+      first, last, cut_short = best
       last += 1 if absorbable_tail?(phases, first, last)
 
       reps = phases[first..last].select { |phase| phase[:kind] == :faster }
       recoveries = phases[first..last].reject { |phase| phase[:kind] == :faster }
 
-      phases[0...first] + [ { kind: :repeats, reps: reps, recoveries: recoveries } ] + phases[(last + 1)..]
+      phases[0...first] +
+        [ { kind: :repeats, reps: reps, recoveries: recoveries, cut_short: cut_short } ] +
+        phases[(last + 1)..]
     end
 
     # An alternation ends on a rep by construction, which strands the recovery
@@ -240,6 +252,10 @@ module LapSegmentation
 
       # Running to the end of the activity makes it a cooldown, not a recovery.
       return false unless phases[last + 2]
+
+      # Running into another fast effort makes it the run-in to the next set,
+      # which belongs to neither. The set ends on its last rep.
+      return false if phases[last + 2][:kind] == :faster
 
       established = phases[first..last].reject { |phase| phase[:kind] == :faster }
       return false if established.empty?
@@ -259,25 +275,48 @@ module LapSegmentation
       phase && phase[:kind] != :faster
     end
 
-    # Walks every maximal alternation that starts and ends on a rep, and returns
-    # the bounds of the one carrying the most.
+    # Walks every alternation that starts on a rep, and returns the bounds of the
+    # one carrying the most work.
+    #
+    # The walk stops at the first rep that is not the same effort as the ones
+    # gathered so far, rather than taking the whole alternation and then
+    # judging it. Judging it whole let a dissimilar tail void the set: six
+    # kilometre reps followed by two strides read as no repeats at all, because
+    # the one window that held the six also held the strides and failed the
+    # length check. The similarity test is monotone under extension, so the
+    # first failure is the end of the longest valid set from that start.
+    #
+    # Sets are ranked on the distance their reps cover, not on how many there
+    # are. Once a leading set can be a candidate, a count would hand a session of
+    # four strides and three 1600s to the strides. Count breaks a tie, and the
+    # earlier set breaks what is left.
+    # Returns [start, finish, cut_short], where cut_short says the alternation
+    # went on past the set with an effort of a different length — a fact the
+    # phase reports, because "four reps" of an eight-rep session in which one
+    # lap press was missed is a confident figure that needs the qualification.
     def longest_alternation(phases)
       best = nil
-      best_reps = 0
+      best_rank = nil
 
       phases.each_index do |start|
         next unless phases[start][:kind] == :faster
 
+        reps = [ phases[start] ]
         finish = start
-        finish += 2 while recovery?(phases[finish + 1]) && phases[finish + 2]&.dig(:kind) == :faster
+        while recovery?(phases[finish + 1]) && phases[finish + 2]&.dig(:kind) == :faster &&
+              similar_distances?(reps + [ phases[finish + 2] ])
+          finish += 2
+          reps << phases[finish]
+        end
 
-        reps = phases[start..finish].select { |phase| phase[:kind] == :faster }
         next if reps.size < MINIMUM_REPS
-        next unless similar_distances?(reps)
-        next unless reps.size > best_reps
 
-        best = [ start, finish ]
-        best_reps = reps.size
+        rank = [ reps.sum { |rep| total_distance(rep[:laps]) }, reps.size, -start ]
+        next if best_rank && (rank <=> best_rank) <= 0
+
+        cut_short = recovery?(phases[finish + 1]) && phases[finish + 2]&.dig(:kind) == :faster
+        best = [ start, finish, cut_short ]
+        best_rank = rank
       end
 
       best
@@ -326,13 +365,15 @@ module LapSegmentation
       # negative-split produce identical aggregates, and which of the two it was
       # is the first thing anyone asks about a workout.
       rep_paces = reps.map { |rep| weighted_pace(rep[:laps]).round(1) }
+      rep_distances = reps.map { |rep| total_distance(rep[:laps]) }
       recovery_durations = recoveries.map { |recovery| total_duration(recovery[:laps]) }
 
       {
         kind: "repeats",
         laps: phase_range(rep_laps + recoveries.flat_map { |recovery| recovery[:laps] }),
         reps: reps.size,
-        rep_distance_km: (median(reps.map { |rep| total_distance(rep[:laps]) }) / 1000.0).round(2),
+        rep_distance_km: (median(rep_distances) / 1000.0).round(2),
+        rep_distance_range_km: uneven_rep_distances(rep_distances),
         rep_pace_per_km: weighted_pace(rep_laps).round(1),
         rep_paces_per_km: rep_paces,
         # Signed, last minus first: positive is a fade, negative a negative split.
@@ -346,8 +387,19 @@ module LapSegmentation
         distance_km: ((total_distance(rep_laps) + recoveries.sum { |r| total_distance(r[:laps]) }) / 1000.0)
                        .round(2),
         average_heart_rate: average_heart_rate(rep_laps),
-        heart_rate_from_laps: partial_heart_rate_count(rep_laps)
+        heart_rate_from_laps: partial_heart_rate_count(rep_laps),
+        note: ("The alternation continued past this set with fast efforts of a different length, " \
+               "which are reported as phases of their own." if phase[:cut_short])
       }.compact
+    end
+
+    # The apex of a pyramid passes the length ratio as three reps, and a median
+    # over 1200, 1600 and 1200 metres says 1.2 km about a set a third of which
+    # was longer. Reported only when the median would be hiding something.
+    def uneven_rep_distances(distances)
+      return nil if distances.max <= distances.min * REP_DISTANCE_SPREAD_RATIO
+
+      [ (distances.min / 1000.0).round(2), (distances.max / 1000.0).round(2) ]
     end
 
     # A median recovery of 60 seconds says nothing about the one that ran to
