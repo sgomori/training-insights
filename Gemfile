@@ -40,7 +40,7 @@ gem "bootsnap", require: false
 # to 2025-11-25. The duplicate-request-id rejection added in 1.3.0 is scoped to
 # a session, and stateless mode gives every POST its own, so concurrent
 # connector calls reusing an id cannot collide.
-gem "mcp", "~> 1.4.0"
+gem "mcp", "~> 1.6.1"
 
 # Anthropic API client for the website's chat and pre-generated content
 #
