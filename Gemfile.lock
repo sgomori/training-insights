@@ -154,7 +154,7 @@ GEM
       net-pop
       net-smtp
     marcel (1.2.1)
-    mcp (1.4.0)
+    mcp (1.8.2)
       json_schemer (>= 2.4)
     mini_mime (1.1.5)
     minitest (6.0.6)
@@ -261,7 +261,7 @@ GEM
       prism (>= 1.6.0)
       rbs (>= 4.0.0)
       tsort
-    regexp_parser (2.12.0)
+    regexp_parser (2.13.1)
     reline (0.7.0)
       io-console (~> 0.5)
     rspec-core (3.13.6)
@@ -386,7 +386,7 @@ DEPENDENCIES
   factory_bot_rails
   faker
   importmap-rails
-  mcp (~> 1.4.0)
+  mcp (~> 1.8.2)
   pg (~> 1.7)
   propshaft
   puma (>= 5.0)
