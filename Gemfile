@@ -49,7 +49,7 @@ gem "mcp", "~> 1.8.2"
 # Held to 2.3.x. This is the only paid API path and the one a visitor's
 # question crosses, so a change to refusal or fallback behaviour should arrive
 # as a reviewable Dependabot PR rather than with a routine bundle update.
-gem "anthropic", "~> 2.3.0"
+gem "anthropic", "~> 2.6.0"
 
 # IP-based rate limiting for the public MCP endpoint and chat
 gem "rack-attack"
