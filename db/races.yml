@@ -39,6 +39,14 @@
 #   distance_meters: 21097
 #   status: cancelled
 
+- name: BMO Vancouver Marathon
+  race_date: 2027-05-02
+  distance_meters: 42195
+
+- name: Vancouver First Half Marathon
+  race_date: 2027-02-07
+  distance_meters: 21097
+
 - name: Royal Victoria Marathon
   race_date: 2026-10-11
   distance_meters: 42195
