@@ -42,7 +42,7 @@ gem "bootsnap", require: false
 # connector calls reusing an id cannot collide. 1.8.2 changed only initialize,
 # which no longer advertises listChanged — a stateless server cannot send those
 # notifications — and error paths normal traffic does not reach.
-gem "mcp", "~> 1.8.2"
+gem "mcp", "~> 1.9.0"
 
 # Anthropic API client for the website's chat and pre-generated content
 #
