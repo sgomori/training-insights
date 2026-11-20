@@ -140,7 +140,7 @@ as its own PR.
 
 Two gems carry deliberate ceilings:
 
-- `mcp` at `~> 1.8.2`. Every widening is confirmed by diffing `initialize`,
+- `mcp` at `~> 1.10.0`. Every widening is confirmed by diffing `initialize`,
   `tools/list` and `tools/call` over the mounted endpoint against the version
   being left behind. The check is manual because no test covers that wire: the
   connector reaches the tools over the public `/mcp` URL. Run it under a
@@ -153,6 +153,8 @@ Two gems carry deliberate ceilings:
   handling that normal client traffic never reaches: `completion/complete`
   returns -32601 instead of -32603, `id: null` is rejected as an invalid
   request, and an error with an unreadable request id omits `"id": null`.
+  1.10.0 came back byte-identical to 1.8.2 on `initialize` under every
+  protocol version, on `tools/list`, every tool call, and the error paths.
 - `anthropic` at `~> 2.3.0`, so a change to refusal or fallback behaviour on
   the visitor-facing path arrives as a reviewable PR. Read the gem diff on the
   beta messages resource and the stop-reason and fallback models; the rest of

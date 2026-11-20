@@ -33,7 +33,7 @@ gem "bootsnap", require: false
 
 # Official Ruby SDK for the Model Context Protocol — powers the analytical tool server
 #
-# Held to 1.8.x. Each widening is checked the same way: initialize, tools/list
+# Held to 1.10.x. Each widening is checked the same way: initialize, tools/list
 # and tools/call are diffed over the mounted endpoint against the version being
 # left behind. 1.4.0 came back identical to 1.2.0 across every protocol version
 # the connector can name, including the modern one, which still negotiates down
@@ -41,8 +41,9 @@ gem "bootsnap", require: false
 # a session, and stateless mode gives every POST its own, so concurrent
 # connector calls reusing an id cannot collide. 1.8.2 changed only initialize,
 # which no longer advertises listChanged — a stateless server cannot send those
-# notifications — and error paths normal traffic does not reach.
-gem "mcp", "~> 1.8.2"
+# notifications — and error paths normal traffic does not reach. 1.10.0 came
+# back identical to 1.8.2, error paths included.
+gem "mcp", "~> 1.10.0"
 
 # Anthropic API client for the website's chat and pre-generated content
 #
