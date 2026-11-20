@@ -155,7 +155,7 @@ Two gems carry deliberate ceilings:
   request, and an error with an unreadable request id omits `"id": null`.
   1.10.0 came back byte-identical to 1.8.2 on `initialize` under every
   protocol version, on `tools/list`, every tool call, and the error paths.
-- `anthropic` at `~> 2.3.0`, so a change to refusal or fallback behaviour on
+- `anthropic` at `~> 2.8.0`, so a change to refusal or fallback behaviour on
   the visitor-facing path arrives as a reviewable PR. Read the gem diff on the
   beta messages resource and the stop-reason and fallback models; the rest of
   the SDK is surface this app never calls. The move to 2.x changed no app code:
@@ -165,7 +165,11 @@ Two gems carry deliberate ceilings:
   wire, `anthropic-version` is now 2026-10-21, the key travels as
   `Authorization: Bearer`, the `?beta=true` query is gone, and the client
   timeout is honoured — 1.67.0 silently replaced it with 600s on
-  `beta.messages.create`.
+  `beta.messages.create`. 2.8.0 left the beta messages resource and the
+  fallback models unchanged and sends byte-identical request bodies. Its new
+  status- and code-specific error classes all descend from `RateLimitError`
+  or `InternalServerError`, so `RegenerateContentJob` retries the same
+  failures it did.
 
 Mechanics that repay the keystrokes:
 
