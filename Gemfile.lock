@@ -75,7 +75,7 @@ GEM
       securerandom (>= 0.3)
       tzinfo (~> 2.0, >= 2.0.5)
       uri (>= 0.13.1)
-    anthropic (2.8.0)
+    anthropic (2.10.0)
       base64 (~> 0.1)
       connection_pool (>= 2, < 4)
       opentelemetry-api (>= 1.2.4, < 2)
@@ -93,7 +93,7 @@ GEM
       bundler (>= 1.2.0)
       thor (~> 1.0)
     concurrent-ruby (1.3.8)
-    connection_pool (3.0.2)
+    connection_pool (3.0.3)
     crass (1.0.8)
     date (3.6.0)
     debug (1.11.1)
@@ -329,7 +329,8 @@ GEM
       fugit (~> 1.11)
       railties (>= 7.1)
       thor (>= 1.3.1)
-    standardwebhooks (1.1.0)
+    standardwebhooks (1.3.0)
+      base64 (~> 0.3.0)
     stimulus-rails (1.3.4)
       railties (>= 6.0.0)
     tailwindcss-rails (4.7.0)
@@ -378,7 +379,7 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
-  anthropic (~> 2.8.0)
+  anthropic (~> 2.10.0)
   bootsnap
   brakeman
   bundler-audit
