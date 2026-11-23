@@ -43,7 +43,7 @@ gem "bootsnap", require: false
 # which no longer advertises listChanged — a stateless server cannot send those
 # notifications — and error paths normal traffic does not reach. 1.10.0 came
 # back identical to 1.8.2, error paths included.
-gem "mcp", "~> 1.10.0"
+gem "mcp", "~> 1.11.0"
 
 # Anthropic API client for the website's chat and pre-generated content
 #
